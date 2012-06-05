@@ -15,6 +15,9 @@ class MediaLIbraryEdit : public QDialog
 {
     Q_OBJECT
 private:
+    Ui::MediaLIbraryEdit *ui;
+
+
     QSharedPointer<CMediaLibraryModel> m_Model;
     QDataWidgetMapper *m_Mapper;
 public:
@@ -23,9 +26,6 @@ public:
 
 public slots:
     void changeLibrary(const QModelIndex &current, const QModelIndex &previous);
-
-private:
-    Ui::MediaLIbraryEdit *ui;
 };
 
 #endif // MEDIALIBRARYEDIT_H

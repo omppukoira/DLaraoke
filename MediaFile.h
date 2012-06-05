@@ -141,7 +141,7 @@ public:
     void readXmlData(QXmlStreamReader *reader);
     void writeXmlData(QXmlStreamWriter *writer);
 
-    int count();
+    unsigned int count();
 
     QSharedPointer<CMediaFile> getMediaFile(int index);
 
