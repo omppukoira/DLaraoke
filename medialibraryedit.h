@@ -15,14 +15,17 @@ class MediaLIbraryEdit : public QDialog
 {
     Q_OBJECT
 private:
-    QSharedPointer<CMediaLibraryModel> m_Model;
+    CMediaLibraryModel *m_Model;
     QDataWidgetMapper *m_Mapper;
+
+    QSharedPointer<CMediaFileLibrary> getCurrentMediaLibrary();
 public:
     explicit MediaLIbraryEdit(QSharedPointer<CMediaFileLibraries> libraries, QWidget *parent = 0);
     ~MediaLIbraryEdit();
 
 public slots:
     void changeLibrary(const QModelIndex &current, const QModelIndex &previous);
+    void exportLibraryData();
 
 private:
     Ui::MediaLIbraryEdit *ui;

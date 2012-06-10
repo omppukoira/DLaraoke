@@ -40,6 +40,11 @@ CMediaLibraryModel::CMediaLibraryModel(QObject *parent)
 CMediaLibraryModel::~CMediaLibraryModel()
 {}
 
+QSharedPointer<CMediaFileLibraries> CMediaLibraryModel::getMediaLibraries()
+{
+    return m_Libraries;
+}
+
 void CMediaLibraryModel::setMediaLibraries(QSharedPointer<CMediaFileLibraries> libs)
 {
     m_Libraries = libs;
@@ -561,6 +566,17 @@ int CMediaFileLibrary::count()
     else
         return m_MediaFiles.size();
 }
+
+int CMediaFileLibrary::fileCount()
+{
+    return m_MediaFiles.size();
+}
+
+int CMediaFileLibrary::uniqueFileCount()
+{
+    return m_UniqueMediaFiles.size();
+}
+
 
 QSharedPointer<CMediaFile> CMediaFileLibrary::getMediaFile(int index)
 {

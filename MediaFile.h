@@ -35,6 +35,7 @@ public:
     CMediaLibraryModel(QObject *parent=0);
     virtual ~CMediaLibraryModel();
 
+    QSharedPointer<CMediaFileLibraries> getMediaLibraries();
     void setMediaLibraries(QSharedPointer<CMediaFileLibraries> libs);
     void resetModel();
 
@@ -142,6 +143,8 @@ public:
     void writeXmlData(QXmlStreamWriter *writer);
 
     int count();
+    int fileCount();
+    int uniqueFileCount();
 
     QSharedPointer<CMediaFile> getMediaFile(int index);
 

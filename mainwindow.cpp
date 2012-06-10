@@ -227,7 +227,7 @@ void MainWindow::writeMediaData()
         return;
     }
     QString fileOut = QFileDialog::getSaveFileName(this, tr("Save media data"),
-                                    "/home", tr("XML files (*.xml)"));
+                                    QDir::homePath(), tr("XML files (*.xml)"));
     if(!fileOut.isEmpty())
     {
         QFile file(fileOut);
