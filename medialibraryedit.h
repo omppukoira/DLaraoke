@@ -19,6 +19,8 @@ private:
     QDataWidgetMapper *m_Mapper;
 
     QSharedPointer<CMediaFileLibrary> getCurrentMediaLibrary();
+    Ui::MediaLIbraryEdit *ui;
+
 public:
     explicit MediaLIbraryEdit(QSharedPointer<CMediaFileLibraries> libraries, QWidget *parent = 0);
     ~MediaLIbraryEdit();
@@ -28,7 +30,7 @@ public slots:
     void exportLibraryData();
 
 private:
-    Ui::MediaLIbraryEdit *ui;
+//    Ui::MediaLIbraryEdit *ui;
 };
 
 #endif // MEDIALIBRARYEDIT_H

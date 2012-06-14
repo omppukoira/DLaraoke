@@ -204,7 +204,7 @@ void MainWindow::readMediaData()
 {
     appendReadCancel();
 
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), "/home", tr("XML files (*.xml)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), QDir::homePath(), tr("XML files (*.xml)"));
     QFile fileIn(fileName);
     QXmlStreamReader reader;
 

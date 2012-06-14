@@ -20,6 +20,7 @@ MediaLIbraryEdit::MediaLIbraryEdit(QSharedPointer<CMediaFileLibraries> libraries
 
     m_Mapper = new QDataWidgetMapper(this);
     m_Mapper->setModel(m_Model);
+
     m_Mapper->addMapping(ui->leName, CMediaLibraryModel::MLM_Name);
     m_Mapper->addMapping(ui->leBackColor, CMediaLibraryModel::MLM_BackColor);
     m_Mapper->addMapping(ui->leForeColor, CMediaLibraryModel::MLM_ForeColor);
@@ -30,6 +31,7 @@ MediaLIbraryEdit::MediaLIbraryEdit(QSharedPointer<CMediaFileLibraries> libraries
     ui->lstLibraries->setModel(libs);
     connect(ui->lstLibraries->selectionModel(), SIGNAL(currentChanged(QModelIndex,QModelIndex)),
             this, SLOT(changeLibrary(QModelIndex,QModelIndex)));
+
     connect(ui->bExportData, SIGNAL(clicked()), this, SLOT(exportLibraryData()));
 }
 
@@ -96,26 +98,3 @@ void MediaLIbraryEdit::exportLibraryData()
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

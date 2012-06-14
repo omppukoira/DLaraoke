@@ -311,7 +311,7 @@ QSharedPointer<CMediaFile> CMediaFileLibraries::getMediaFile(int index) const
     else
         pFiles = (tMediaFiles *)&(m_MediaFiles);
 
-    if(index >= 0 && index < pFiles->size())
+    if(index >= 0 && index < (int)(pFiles->size()))
         return pFiles->operator [](index);
     else
         return QSharedPointer<CMediaFile>();
@@ -559,7 +559,7 @@ void CMediaFileLibrary::writeXmlData(QXmlStreamWriter *writer)
     writer->writeEndElement();
 }
 
-int CMediaFileLibrary::count()
+unsigned int CMediaFileLibrary::count()
 {
     if(m_bUniqueFiles)
         return m_UniqueMediaFiles.size();
@@ -576,7 +576,6 @@ int CMediaFileLibrary::uniqueFileCount()
 {
     return m_UniqueMediaFiles.size();
 }
-
 
 QSharedPointer<CMediaFile> CMediaFileLibrary::getMediaFile(int index)
 {
