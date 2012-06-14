@@ -88,7 +88,7 @@ void MediaLIbraryEdit::exportLibraryData()
             // QDataStream exportData(&exportFile);
             QTextStream exportData(&exportFile);
             QSharedPointer<CMediaFile> mediaFile;
-            int i;
+            unsigned int i;
 
             for(i=0; i<lib->count(); i++)
             {
