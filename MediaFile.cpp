@@ -665,12 +665,24 @@ QString CMediaFile::getExecCmd()
     {
     case MF_VOB:
         player = settings.value("Media Player/VOB").toString();
+        if(player.isEmpty())    // Forcing settings to default value
+        {
+            settings.setValue("Media Player/VOB", "mplayer -fs \"%1\"");
+        }
         break;
     case MF_AVI:
         player = settings.value("Media Player/AVI").toString();
+        if(player.isEmpty())    // Forcing settings to default value
+        {
+            settings.setValue("Media Player/AVI", "mplayer -fs \"%1\"");
+        }
         break;
     case MF_CDG:
         player = settings.value("Media Player/CDG").toString();
+        if(player.isEmpty())    // Forcing settings to default value
+        {
+            settings.setValue("Media Player/CDG", "vlc -f \"%1\"");
+        }
         break;
     default:
         return "";

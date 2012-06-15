@@ -125,7 +125,7 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
         {
             QPalette pal = ui->leSearchText->palette();
 
-            pal.setColor(ui->leSearchText->backgroundRole(), Qt::yellow);
+            pal.setColor(ui->leSearchText->backgroundRole(), QColor("#AA9900") );
             ui->leSearchText->setPalette(pal);
         }
         else if(event->type() == QEvent::FocusOut)
