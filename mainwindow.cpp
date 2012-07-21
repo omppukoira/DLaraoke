@@ -11,6 +11,7 @@
 #include <QXmlStreamWriter>
 #include <QFile>
 #include <QProgressDialog>
+#include <QDesktopServices>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -21,11 +22,16 @@ MainWindow::MainWindow(QWidget *parent) :
     m_pFiles->setMediaLibraries(m_Libraries);
     m_pSortModel = new QSortFilterProxyModel();
 
+    m_pDetailFiles = new CDetailMediaFileModel();
+    m_pDetailFiles->setMediaLibraries(m_Libraries);
+
     ui->setupUi(this);
     ui->tvMediaFiles->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tvMediaFiles->setSortingEnabled(true);
     ui->tvMediaFiles->setModel(m_pSortModel);
     m_pSortModel->setSourceModel(m_pFiles);
+
+    ui->treeMediaFiles->setModel(m_pDetailFiles);
 
     m_pInfo = new QLabel();
     ui->sbMain->addWidget(m_pInfo, 1);
@@ -44,8 +50,15 @@ MainWindow::MainWindow(QWidget *parent) :
     // Event filters
     ui->tvMediaFiles->installEventFilter(this);
     ui->leSearchText->installEventFilter(this);
+    ui->treeMediaFiles->installEventFilter(this);
 
     readSettings();
+
+    QString mainLib = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
+    mainLib += QDir::separator();
+    mainLib += "mainLib.xml";
+    if(QFile::exists(mainLib))
+        readMediaData(mainLib);
 }
 
 MainWindow::~MainWindow()
@@ -108,6 +121,22 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
                 playFile(ui->tvMediaFiles->currentIndex());
                 return true;
             }
+
+            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier  )
+            {
+                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
+            }
+        }
+
+    if(target == ui->treeMediaFiles)
+        if(event->type() == QEvent::KeyPress)
+        {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+
+            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
+            {
+                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
+            }
         }
 
     if(target == ui->leSearchText)          // Messages from leSearchText
@@ -120,12 +149,16 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
                 ui->tvMediaFiles->setFocus();
                 return true;
             }
+            else if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
+            {
+                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
+            }
         }
         else if(event->type() == QEvent::FocusIn)
         {
             QPalette pal = ui->leSearchText->palette();
 
-            pal.setColor(ui->leSearchText->backgroundRole(), QColor("#AA9900") );
+            pal.setColor(ui->leSearchText->backgroundRole(), QColor("#DDAA00") );
             ui->leSearchText->setPalette(pal);
         }
         else if(event->type() == QEvent::FocusOut)
@@ -161,6 +194,8 @@ void MainWindow::setFilters()
     m_pSortModel->sort(CMediaFileModel::MFM_Title);   // Sort by title name
     m_pSortModel->setFilterKeyColumn(-1);             // Search from all columns
     m_pSortModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+
+    m_pDetailFiles->setMediaLibraries(m_Libraries);
 }
 
 void MainWindow::scanMediaFiles()
@@ -173,6 +208,7 @@ void MainWindow::scanMediaFiles()
     if(!dir.isEmpty())
     {
         QSharedPointer<CMediaFileLibrary> tmpLib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
+        // tmpLib->setThis(tmpLib);
         tmpLib->setShowUniqueFiles(false);
         tmpLib->scanMediaFiles(dir, true, NULL);
         if(tmpLib->count() <= 0)
@@ -185,7 +221,7 @@ void MainWindow::scanMediaFiles()
             QSharedPointer<CMediaFileLibrary> lib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
             QProgressDialog progress("Scanning media files...", "Cancel", 0, tmpLib->count(), this);
             progress.setWindowModality(Qt::WindowModal);
-
+            lib->setThis(lib);
             lib->scanMediaFiles(dir, false, &progress);
             if(lib->count() == tmpLib->count())
             {
@@ -200,23 +236,45 @@ void MainWindow::scanMediaFiles()
     }
 }
 
-void MainWindow::readMediaData()
+void MainWindow::writeMediaData(QString fileName)
 {
-    appendReadCancel();
+    QFile file(fileName);
 
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), QDir::homePath(), tr("XML files (*.xml)"));
+    if(!file.open(QFile::WriteOnly | QFile::Text))
+    {
+        QMessageBox::warning(this, tr("Write data"), tr("Unable to open file for writing"));
+        return;
+    }
+
+    QXmlStreamWriter writer(&file);
+    writer.setAutoFormatting(true);
+
+    m_Libraries->writeMediaLibraries(&writer);
+}
+
+void MainWindow::readMediaData(QString fileName)
+{
     QFile fileIn(fileName);
     QXmlStreamReader reader;
 
     if(!fileIn.open(QFile::ReadOnly | QFile::Text))
     {
-        QMessageBox::warning(this, tr("Open Media library"), "Failed to open file");
+        QMessageBox::warning(this, tr("Read Media library"), tr("Failed to open file [%1]").arg(fileName));
         return;
     }
 
     reader.setDevice(&fileIn);
     m_Libraries->readMediaLibraries(&reader);
     setFilters();
+}
+
+void MainWindow::readMediaData()
+{
+    appendReadCancel();
+
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), QDir::homePath(), tr("XML files (*.xml)"));
+    if(!fileName.isEmpty())
+        readMediaData(fileName);
 }
 
 void MainWindow::writeMediaData()
@@ -230,17 +288,7 @@ void MainWindow::writeMediaData()
                                     QDir::homePath(), tr("XML files (*.xml)"));
     if(!fileOut.isEmpty())
     {
-        QFile file(fileOut);
-        if(!file.open(QFile::WriteOnly | QFile::Text))
-        {
-            QMessageBox::warning(this, tr("Write data"), tr("Unable to open file for writing"));
-            return;
-        }
-
-        QXmlStreamWriter writer(&file);
-        writer.setAutoFormatting(true);
-
-        m_Libraries->writeMediaLibraries(&writer);
+        writeMediaData(fileOut);
     }
 }
 

@@ -6,35 +6,50 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>463</width>
-    <height>365</height>
+    <width>540</width>
+    <height>416</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <widget class="MediaFileView" name="tvMediaFiles">
-      <property name="font">
-       <font>
-        <pointsize>22</pointsize>
-       </font>
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QStackedWidget" name="stwMain">
+      <property name="currentIndex">
+       <number>0</number>
       </property>
-      <property name="alternatingRowColors">
-       <bool>true</bool>
-      </property>
+      <widget class="QWidget" name="list">
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="MediaFileView" name="tvMediaFiles">
+          <property name="font">
+           <font>
+            <pointsize>22</pointsize>
+           </font>
+          </property>
+          <property name="alternatingRowColors">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="Treeview">
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="0">
+         <widget class="QTreeView" name="treeMediaFiles"/>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
-    <item row="0" column="1">
-     <layout class="QVBoxLayout" name="verticalLayout"/>
-    </item>
-    <item row="1" column="0" colspan="2">
+    <item>
      <widget class="QLineEdit" name="leSearchText">
       <property name="font">
        <font>
-        <pointsize>22</pointsize>
+        <pointsize>32</pointsize>
        </font>
       </property>
      </widget>
@@ -46,7 +61,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>463</width>
+     <width>540</width>
      <height>25</height>
     </rect>
    </property>

@@ -6,6 +6,8 @@
 #include <QXmlStreamWriter>
 #include <QSharedPointer>
 #include <QProgressDialog>
+#include <QDir>
+#include <QDateTime>
 
 #include <vector>
 
@@ -24,7 +26,9 @@ public:
         MLM_Name = 0,
         MLM_BackColor = 1,
         MLM_ForeColor = 2,
-        MLM_FilePaht = 3
+        MLM_FilePaht = 3,
+        MLM_MainLib = 4,
+        MLM_Columns = 5
     }
     tMLMCols;
 
@@ -57,7 +61,7 @@ protected:
     QSharedPointer<CMediaFileLibraries> m_Libraries;
 
 public:
-    explicit CMediaFileModel(QObject *parent=0);
+    CMediaFileModel(QObject *parent=0);
     virtual ~CMediaFileModel();
 
     typedef enum
@@ -73,6 +77,61 @@ public:
 
     int rowCount(const QModelIndex &parent) const;
     int columnCount(const QModelIndex &parent) const;
+    QVariant data(const QModelIndex &index, int role) const;
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
+};
+
+class CDetailNode
+{
+public:
+    enum Type       {Root, Artist, MediaFile, MediaFileInfo, AudioTracks, AudioTrack, Tags, Tag};
+    enum InfoType   {PathInLib, Size, Hash};
+
+protected:
+    Type m_Type;
+    QSharedPointer<CMediaFile> m_MediaFile;
+    vector<CDetailNode*> m_Children;
+    CDetailNode *m_pParent;
+    int m_iRowNo;
+
+public:
+    CDetailNode(Type type, QSharedPointer<CMediaFile> mediaFile);
+    ~CDetailNode();
+
+    CDetailNode *parent() const;
+    void setParent(CDetailNode *pParent);
+
+    Type type() const;
+    QSharedPointer<CMediaFile> mediaFile() const;
+
+    CDetailNode *child(int index) const;
+    int childCount() const;
+
+    int rowNo() const;
+    void setRowNo(int iRowNo);
+
+    void addChild(CDetailNode *pChild);
+};
+
+class CDetailMediaFileModel : public QAbstractItemModel
+{
+protected:
+    CDetailNode *m_pRoot;
+
+    CDetailNode *findArtist(QString szName) const;
+    CDetailNode *nodeFromIndex(const QModelIndex &index) const;
+public:
+    CDetailMediaFileModel(QObject *parent=0);
+    ~CDetailMediaFileModel();
+
+    void setMediaLibraries(QSharedPointer<CMediaFileLibraries> libs);
+
+    QModelIndex index(int row, int column, const QModelIndex &parent) const;
+    QModelIndex parent(const QModelIndex &child) const;
+
+    int rowCount(const QModelIndex &parent) const;
+    int columnCount(const QModelIndex &parent) const;
+
     QVariant data(const QModelIndex &index, int role) const;
     QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 };
@@ -116,6 +175,7 @@ class CMediaFileLibrary
 {
 public:
     static const QString NOD_MEDIA_LIBRARY;
+    static const QString ATTR_TYPE;
     static const QString NOD_LOCATION;
     static const QString NOD_MEDIA_FILES;
     static const QString NOD_FORE_COLOR;
@@ -127,6 +187,7 @@ protected:
     QString m_szName;
     QString m_szForeColor, m_szBackColor;   // Color definition for whowing different libraries
     bool m_bUniqueFiles;                    // Show only unique files (default: yes)
+    bool m_bIsMainLib;                      // Main library... copy files to this library ?
 
     QWeakPointer<CMediaFileLibrary> m_This;
     typedef vector<QSharedPointer<CMediaFile> > tMediaFiles;
@@ -149,7 +210,6 @@ public:
 
     unsigned int count();
 
-
     QSharedPointer<CMediaFile> getMediaFile(int index);
 
     QString getName() const                     {return m_szName;}
@@ -165,22 +225,55 @@ public:
 
     bool showUniqueFiles()                      {return m_bUniqueFiles;}
     void setShowUniqueFiles(bool bUniqueFiles)  {m_bUniqueFiles = bUniqueFiles;}
+
+    bool isMain()                               {return m_bIsMainLib;}
+    void setIsMain(bool bIsMain)                {m_bIsMainLib = bIsMain;}
+};
+
+class CAudioTrack
+{
+private:
+    int m_iId;
+    QString m_szName;
+public:
+    CAudioTrack();
+    CAudioTrack(int iId);
+    CAudioTrack(int iId, QString szName);
+
+    CAudioTrack &operator = (int iId);
+
+    int getId()                         {return m_iId;}
+    QString getName()                   {return m_szName;}
+    void setName(QString szName)        {m_szName = szName;}
+};
+
+class CFileTag
+{
+private:
+    QString m_szName, m_szValue;
+public:
+    CFileTag();
+    CFileTag(QString szName, QString szValue);
+
+    QString name() const;
+    void setName(QString szName);
+
+    QString value() const;
+    void setValue(QString szValue);
 };
 
 class CMediaFile
 {
 public:
-    static const QString NOD_MEDIA_FILE;
-    static const QString ATTR_FILE_TYPE;
-    static const QString NOD_ARTIST;
-    static const QString NOD_TITLE;
-    static const QString NOD_PATH;
-    static const QString NOD_FILE;
-    static const QString NOD_AUDIO_TRACKS;
-    static const QString NOD_AUDIO_TRACK;
-    static const QString ATTR_ID;
-    static const QString NOD_NAME;
-    static const QString NOD_HASH;
+    static const QString NOD_MEDIA_FILE, ATTR_FILE_TYPE;
+    static const QString NOD_ARTIST, NOD_TITLE;
+    static const QString NOD_PATH, NOD_FILE, NOD_NAME;
+    static const QString NOD_AUDIO_TRACKS, NOD_AUDIO_TRACK, ATTR_ID;
+    static const QString NOD_HASH, NOD_SIZE, NOD_CREATED, NOD_MODIFIED;
+    static const QString NOD_TAGS,NOD_TAG, ATTR_NAME;
+
+    static const QString TAG_DUPLICATE;     // Full name (ie. absolute path to) of duplicate file
+    static const QString TAG_LAST_FOLDER;   // Folder name where file or its duplicata is
 
     typedef enum
     {
@@ -189,23 +282,6 @@ public:
         MF_AVI = 2,                         // AVI: Ripped from karaoke dvd, contains only one sound track
         MF_CDG = 3                          // CDG: Consist from two files .cdg and .mp3
     } tMediaFileType;
-
-    class CAudioTrack
-    {
-    private:
-        int m_iId;
-        QString m_szName;
-    public:
-        CAudioTrack();
-        CAudioTrack(int iId);
-        CAudioTrack(int iId, QString szName);
-
-        CAudioTrack &operator = (int iId);
-
-        int getId()                         {return m_iId;}
-        QString getName()                   {return m_szName;}
-        void setName(QString szName)        {m_szName = szName;}
-    };
 
 private:
     QWeakPointer<CMediaFileLibrary> m_Parent;
@@ -217,20 +293,30 @@ private:
     tMediaFileType m_FileType;
     vector<QSharedPointer<CAudioTrack> > m_audioTracks;
                                             // ID's of audiotracks
+    vector<QSharedPointer<CFileTag> > m_tags;
+
+    qint64 m_iFileSize;
     QString m_szHash;
+    QDateTime m_Created, m_Modified;
+
     bool m_bIsUnique,                       // Is this file unique in Media library (m_Parent) ?
          m_bIsGlobalUnique;                 // Is this file unique in all loaded media libraries ?
 
 public:
     CMediaFile();
 
-    bool Create(QFileInfo mediaFile, QString szPath);
+    bool Create(QFileInfo &mediaFile, QString szPath);
 
     tMediaFileType getType() const          {return m_FileType;}
     QString getPaht() const                 {return m_szFilePaht;}
+    QString getFileName() const             {return m_szFileName;}
+    QString getFullName() const             {return m_szFilePaht + QDir::separator() + m_szFileName;}
     QString getArtist() const               {return m_szArtist;}
     QString getTitle() const                {return m_szTitle;}
 
+    int getSize() const                     {return m_iFileSize;}
+    QDateTime getCreated() const            {return m_Created;}
+    QDateTime getModified() const           {return m_Modified;}
     QString getHash() const                 {return m_szHash;}
     void setHash(QString szHash)            {m_szHash = szHash;}
     QString calcHash();
@@ -241,11 +327,18 @@ public:
     bool isGlobalUnique() const             {return m_bIsGlobalUnique;}
     void setIsGlobalUnique(bool bIsGlobalUnique)
                                             {m_bIsGlobalUnique = bIsGlobalUnique;}
-    QString getExecCmd();
+    QString getExecCmd() const;
+    QString getPahtInLibrary() const;
+    bool moveToPreferredLocation(QSharedPointer<CMediaFileLibrary> mediaLib);
 
-    QWeakPointer<CMediaFileLibrary> getParent();
+    QWeakPointer<CMediaFileLibrary> getParent() const;
     void setParent(QSharedPointer<CMediaFileLibrary> mediaLib);
 
+    void addTag(QString szName, QString szValue);
+    void updateTag(QString szName, QString szValue);
+
+    vector<QSharedPointer<CAudioTrack> > *audioTracks()
+                                            {return &m_audioTracks;}
     bool readAudioTrackInfo();
 
     void readXmlData(QXmlStreamReader *reader);

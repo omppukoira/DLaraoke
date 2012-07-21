@@ -13,7 +13,7 @@ public:
 
     static QSettings &settings()
     {
-        static QSettings set("Duo Liukko", "Karaoke");
+        static QSettings set;
 
         return set;
     }

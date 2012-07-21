@@ -29,6 +29,8 @@ public:
 public slots:
     void changeLibrary(const QModelIndex &current, const QModelIndex &previous);
     void exportLibraryData();
+    void removeDuplicates();
+    void relocateMediaFiles();
 
 private:
 };

@@ -6,6 +6,7 @@
 #include <QColor>
 #include <QSettings>
 #include <QCryptographicHash>
+#include <QMessageBox>
 
 #include "ctool.h"
 #include "dlaraoke.h"
@@ -23,10 +24,20 @@ const QString CMediaFile::ATTR_ID                   = "id";
 const QString CMediaFile::NOD_AUDIO_TRACK           = "audio_track";
 const QString CMediaFile::NOD_NAME                  = "name";
 const QString CMediaFile::NOD_HASH                  = "hash";
+const QString CMediaFile::NOD_SIZE                  = "file_size";
+const QString CMediaFile::NOD_CREATED               = "created";
+const QString CMediaFile::NOD_MODIFIED              = "modified";
+const QString CMediaFile::NOD_TAGS                  = "tags";
+const QString CMediaFile::NOD_TAG                   = "tag";
+const QString CMediaFile::ATTR_NAME                 = "name";
 
-const QString CMediaFileLibrary::m_szMediaFileTypes = "*.VOB;*.AVI;*.MP3";
+const QString CMediaFile::TAG_DUPLICATE             = "duplicate";
+const QString CMediaFile::TAG_LAST_FOLDER           = "last_folder";
+
+const QString CMediaFileLibrary::m_szMediaFileTypes = "*.VOB;*.AVI;*.MP3;*.MPG;*.FLV;*.MP4";
 
 const QString CMediaFileLibrary::NOD_MEDIA_LIBRARY  = "media_library";
+const QString CMediaFileLibrary::ATTR_TYPE          = "type";
 const QString CMediaFileLibrary::NOD_LOCATION       = "location";
 const QString CMediaFileLibrary::NOD_MEDIA_FILES    = "media_files";
 const QString CMediaFileLibrary::NOD_FORE_COLOR     = "forecolor";
@@ -70,13 +81,12 @@ int CMediaLibraryModel::rowCount(const QModelIndex &parent) const
         iRowCount = 0;
     }
 
-    qDebug() << "CMediaLibraryModel::rowCount"<< parent.row() << parent.column() << "->" << iRowCount;
     return iRowCount;
 }
 
 int CMediaLibraryModel::columnCount(const QModelIndex & /* parent */) const
 {
-    return MLM_FilePaht+1;
+    return MLM_Columns;
 }
 
 QVariant CMediaLibraryModel::data(const QModelIndex &index, int role) const
@@ -95,6 +105,8 @@ QVariant CMediaLibraryModel::data(const QModelIndex &index, int role) const
             return QVariant(m_Libraries->getMediaLibrary(index.row())->getForeColor());
         case MLM_FilePaht:
             return QVariant(m_Libraries->getMediaLibrary(index.row())->getLocation());
+        case MLM_MainLib:
+            return QVariant(m_Libraries->getMediaLibrary(index.row())->isMain());
         default:
             return QVariant();
         }
@@ -119,6 +131,9 @@ bool CMediaLibraryModel::setData(const QModelIndex &index, const QVariant &value
             return true;
         case MLM_ForeColor:
             m_Libraries->getMediaLibrary(index.row())->setForeColor(value.toString());
+            return true;
+        case MLM_MainLib:
+            m_Libraries->getMediaLibrary(index.row())->setIsMain(value.toBool());
             return true;
         }
     }
@@ -239,6 +254,258 @@ QVariant CMediaFileModel::headerData(int section, Qt::Orientation orientation, i
     }
 }
 
+CDetailNode::CDetailNode(Type type, QSharedPointer<CMediaFile> mediaFile)
+    : m_Type(type)
+    , m_pParent(NULL)
+    , m_MediaFile(mediaFile)
+{ }
+
+CDetailNode::~CDetailNode()
+{
+    int i;
+
+    for(i=0; i<m_Children.size(); i++)
+    {
+        delete m_Children[i];
+    }
+    m_Children.clear();
+}
+
+CDetailNode *CDetailNode::parent() const
+{
+    return m_pParent;
+}
+
+void CDetailNode::setParent(CDetailNode *pParent)
+{
+    m_pParent = pParent;
+}
+
+CDetailNode::Type CDetailNode::type() const
+{
+    return m_Type;
+}
+
+QSharedPointer<CMediaFile> CDetailNode::mediaFile() const
+{
+    return m_MediaFile;
+}
+
+CDetailNode *CDetailNode::child(int index) const
+{
+    if(index < 0 || index >= m_Children.size())
+        return NULL;
+    else
+        return m_Children[index];
+}
+
+int CDetailNode::childCount() const
+{
+    return m_Children.size();
+}
+
+int CDetailNode::rowNo() const
+{
+    return m_iRowNo;
+}
+
+void CDetailNode::setRowNo(int iRowNo)
+{
+    m_iRowNo = iRowNo;
+}
+
+void CDetailNode::addChild(CDetailNode *pChild)
+{
+    m_Children.push_back(pChild);
+    pChild->setRowNo(m_Children.size()-1);
+    pChild->setParent(this);
+}
+
+CDetailMediaFileModel::CDetailMediaFileModel(QObject *parent)
+    : QAbstractItemModel(parent)
+    , m_pRoot(NULL)
+{}
+
+CDetailMediaFileModel::~CDetailMediaFileModel()
+{
+    delete m_pRoot;
+    m_pRoot = NULL;
+}
+
+CDetailNode *CDetailMediaFileModel::findArtist(QString szName) const
+{
+    int i;
+
+    if(m_pRoot == NULL)
+        return 0;
+
+    for(i=0; i<m_pRoot->childCount(); i++)
+    {
+        if(!(m_pRoot->child(i)->mediaFile().isNull()))
+        {
+            if(m_pRoot->child(i)->mediaFile()->getArtist() == szName)
+                return m_pRoot->child(i);
+        }
+    }
+
+    return NULL;
+}
+
+CDetailNode *CDetailMediaFileModel::nodeFromIndex(const QModelIndex &index) const
+{
+    if(index.isValid())
+        return static_cast<CDetailNode *>(index.internalPointer());
+    else
+        return m_pRoot;
+}
+
+void CDetailMediaFileModel::setMediaLibraries(QSharedPointer<CMediaFileLibraries> libs)
+{
+    unsigned int i, j;
+    CDetailNode *pArtist, *pMediaFile, *pAudioTracks, *pAudioTrack;
+    QSharedPointer<CMediaFile> mediaFile;
+    vector<QSharedPointer<CAudioTrack> > *audioTracks;
+
+    beginResetModel();
+    if(m_pRoot) delete m_pRoot;
+    m_pRoot = new CDetailNode(CDetailNode::Root, QSharedPointer<CMediaFile>());
+    m_pRoot->setRowNo(0);
+
+    for(i=0; i<libs->fileCount(); i++)
+    {
+        mediaFile = libs->getMediaFile(i);
+        if(!mediaFile.isNull())
+        {
+            pArtist = findArtist(mediaFile->getArtist());
+            if(pArtist == NULL)
+            {
+                pArtist = new CDetailNode(CDetailNode::Artist, mediaFile);
+                m_pRoot->addChild(pArtist);
+            }
+
+            pMediaFile = new CDetailNode(CDetailNode::MediaFile, mediaFile);
+            pArtist->addChild(pMediaFile);
+            if(mediaFile->audioTracks()->size() > 0)
+            {
+                pAudioTracks = new CDetailNode(CDetailNode::AudioTracks, mediaFile);
+                pMediaFile->addChild(pAudioTracks);
+
+                audioTracks = mediaFile->audioTracks();
+                for(j=0; j<audioTracks->size(); j++)
+                {
+                    pAudioTrack = new CDetailNode(CDetailNode::AudioTrack, mediaFile);
+                    pAudioTracks->addChild(pAudioTrack);
+                }
+            }
+        }
+    }
+    endResetModel();
+}
+
+QModelIndex CDetailMediaFileModel::index(int row, int column, const QModelIndex &parent) const
+{
+    if(m_pRoot == NULL || row < 0 || column < 0)
+        return QModelIndex();
+
+    CDetailNode *pParentNode = nodeFromIndex(parent);
+    CDetailNode *pChildNode = pParentNode->child(row);
+
+    if(!pChildNode)
+        return QModelIndex();
+
+    return createIndex(row, column, pChildNode);
+}
+
+QModelIndex CDetailMediaFileModel::parent(const QModelIndex &child) const
+{
+    CDetailNode *pChild, *pParent;
+    int i;
+
+    if((pChild = nodeFromIndex(child)) == NULL)
+        return QModelIndex();
+    if((pParent = pChild->parent()) == NULL)
+        return QModelIndex();
+
+    return createIndex(pParent->rowNo(), 0, pParent);
+}
+
+int CDetailMediaFileModel::rowCount(const QModelIndex &parent) const
+{
+    if(parent.column()>0)
+        return 0;
+
+    CDetailNode *pParent = nodeFromIndex(parent);
+
+    if(pParent)
+        return pParent->childCount();
+    else
+        return 0;
+}
+
+int CDetailMediaFileModel::columnCount(const QModelIndex &parent) const
+{
+    return 2;
+}
+
+QVariant CDetailMediaFileModel::data(const QModelIndex &index, int role) const
+{
+    CDetailNode *pNode;
+
+    if(role != Qt::DisplayRole)
+        return QVariant();
+
+    if((pNode = nodeFromIndex(index)) == NULL || pNode->mediaFile().isNull())
+        return QVariant();
+
+
+    if(pNode->type() == CDetailNode::Artist)
+    {
+        if(index.column() == 0)
+            return pNode->mediaFile()->getArtist();
+    }
+    else if(pNode->type() == CDetailNode::MediaFile)
+    {
+        if(index.column() == 0)
+            return pNode->mediaFile()->getTitle();
+        else if(index.column() == 1)
+            return pNode->mediaFile()->getFileName();
+    }
+    else if(pNode->type() == CDetailNode::AudioTracks)
+    {
+        if(index.column() == 0)
+            return tr("Audio Tracks");
+    }
+    else if(pNode->type() == CDetailNode::AudioTrack)
+    {
+        if(index.column() == 0)
+        {
+            vector<QSharedPointer<CAudioTrack> > *audioTracks;
+
+            audioTracks = pNode->mediaFile()->audioTracks();
+            if(pNode->rowNo() >= 0 && pNode->rowNo() < audioTracks->size())
+                return QString("ID %1").arg(audioTracks->at(pNode->rowNo())->getId());
+        }
+        else if(index.column() == 1)
+            return pNode->mediaFile()->audioTracks()->at(index.row())->getName();
+    }
+
+    return QVariant();
+}
+
+QVariant CDetailMediaFileModel::headerData(int section, Qt::Orientation orientation, int role) const
+{
+    if(orientation == Qt::Horizontal && role == Qt::DisplayRole)
+    {
+        if(section == 0)
+            return tr("Track");
+        else if(section == 1)
+            return tr("Path");
+        else if(section == 2)
+            return tr("File name");
+    }
+    return QVariant();
+}
+
 bool CMediaFileLibraries::isUniqueFile(QSharedPointer<CMediaFile> file)
 {
     unsigned int i;
@@ -354,11 +621,14 @@ void CMediaFileLibraries::readMediaLibraries(QXmlStreamReader *reader)
         {
             while(!reader->atEnd() && !(reader->isEndElement() && reader->name() == "media_libraries"))
             {
-                qDebug() << CTool::xmlNodeInfo(*reader);
-
                 if(IS_START_ELEM(reader, CMediaFileLibrary::NOD_MEDIA_LIBRARY))
                 {
                     QSharedPointer<CMediaFileLibrary> lib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
+
+                    if(reader->attributes().value(CMediaFileLibrary::ATTR_TYPE).toString() == "main")
+                        lib->setIsMain(true);
+                    else
+                        lib->setIsMain(false);
 
                     lib->setThis(lib);
                     lib->readXmlData(reader);
@@ -371,7 +641,6 @@ void CMediaFileLibraries::readMediaLibraries(QXmlStreamReader *reader)
             }
         }
         reader->readNext();
-        qDebug() << CTool::xmlNodeInfo(*reader);
     }
 
     if(reader->hasError())
@@ -411,18 +680,34 @@ void CMediaFileLibrary::addFile(QSharedPointer<CMediaFile> file)
 {
     bool isUnique = true;
     unsigned int i;
+    QString szLastFolder;
+
+    file->setParent(m_This);
 
     for(i=0; i<m_MediaFiles.size(); i++)
         if(m_MediaFiles[i]->getHash() == file->getHash())
         {
+            m_MediaFiles[i]->addTag(CMediaFile::TAG_DUPLICATE, file->getFullName());
+
+            szLastFolder = file->getPahtInLibrary();
+            szLastFolder = szLastFolder.mid(szLastFolder.lastIndexOf(QDir::separator())+1);
+            if(!szLastFolder.isEmpty())
+            {
+                m_MediaFiles[i]->addTag(CMediaFile::TAG_LAST_FOLDER, szLastFolder);
+            }
             isUnique = false;
             break;
         }
 
-    file->setParent(m_This);
     m_MediaFiles.push_back(file);
     if(isUnique)
     {
+        szLastFolder = file->getPahtInLibrary();
+        szLastFolder = szLastFolder.mid(szLastFolder.lastIndexOf(QDir::separator())+1);
+        if(!szLastFolder.isEmpty())
+        {
+            file->addTag(CMediaFile::TAG_LAST_FOLDER, szLastFolder);
+        }
         file->setIsUnique(true);
         m_UniqueMediaFiles.push_back(file);
     }
@@ -449,13 +734,17 @@ void CMediaFileLibrary::addFiles(QString szDirectory, bool bPrescan, QProgressDi
     foreach (QString file, mlib.entryList(szFilters, QDir::Files))
     {
         QSharedPointer<CMediaFile> pMediaFile;
-        QFileInfo fi(file);
+        QFileInfo fi(mlib.absolutePath() + QDir::separator() + file);
 
+        if(!fi.exists())
+        {
+            QMessageBox::warning(NULL, "addFiles", QString("File [%1] does not exist").arg(mlib.dirName() + QDir::separator() + file));
+        }
         if(!fi.isDir())
         {
             pMediaFile = QSharedPointer<CMediaFile>(new CMediaFile());
 
-            pMediaFile->Create(QFileInfo(file), szDirectory);
+            pMediaFile->Create(fi, szDirectory); // Oli QFileInfo(file) ??
             if(!bPrescan)
                 pMediaFile->setHash(pMediaFile->calcHash());
 
@@ -499,6 +788,10 @@ void CMediaFileLibrary::readXmlData(QXmlStreamReader *reader)
     if(IS_START_ELEM(reader, NOD_MEDIA_LIBRARY))
     {
         m_szName = reader->attributes().value("name").toString();
+        if(reader->attributes().value(CMediaFileLibrary::ATTR_TYPE).toString() == "main")
+            m_bIsMainLib = true;
+        else
+            m_bIsMainLib = false;
 
         while(!(reader->atEnd()) && !(reader->isEndElement() && reader->name() == NOD_MEDIA_LIBRARY))
         {
@@ -547,6 +840,10 @@ void CMediaFileLibrary::writeXmlData(QXmlStreamWriter *writer)
 
     writer->writeStartElement(NOD_MEDIA_LIBRARY);
     writer->writeAttribute("name", m_szName);
+    if(m_bIsMainLib)
+        writer->writeAttribute(ATTR_TYPE, "main");
+    else
+        writer->writeAttribute(ATTR_TYPE, "secondary");
     writer->writeTextElement(NOD_LOCATION, m_szMediaLibLocation);
     writer->writeTextElement(NOD_FORE_COLOR, m_szForeColor);
     writer->writeTextElement(NOD_BACK_COLOR, m_szBackColor);
@@ -592,23 +889,52 @@ QSharedPointer<CMediaFile> CMediaFileLibrary::getMediaFile(int index)
         return QSharedPointer<CMediaFile>();
 }
 
-CMediaFile::CAudioTrack::CAudioTrack()
+CAudioTrack::CAudioTrack()
     : m_iId(0)
 {}
 
-CMediaFile::CAudioTrack::CAudioTrack(int iId)
+CAudioTrack::CAudioTrack(int iId)
     : m_iId(iId)
 {}
 
-CMediaFile::CAudioTrack::CAudioTrack(int iId, QString szName)
+CAudioTrack::CAudioTrack(int iId, QString szName)
     : m_iId(iId), m_szName(szName)
 {}
 
-CMediaFile::CAudioTrack &CMediaFile::CAudioTrack::operator =(int iId)
+CAudioTrack &CAudioTrack::operator =(int iId)
 {
     m_iId = iId;
     m_szName = QString("Audio track [%1]").arg(iId);
     return *this;
+}
+
+CFileTag::CFileTag()
+    : m_szName("")
+{}
+
+CFileTag::CFileTag(QString szName, QString szValue)
+    : m_szName(szName)
+    , m_szValue(szValue)
+{}
+
+QString CFileTag::name() const
+{
+    return m_szName;
+}
+
+void CFileTag::setName(QString szName)
+{
+    szName = szName;
+}
+
+QString CFileTag::value() const
+{
+    return m_szValue;
+}
+
+void CFileTag::setValue(QString szValue)
+{
+    m_szValue = szValue;
 }
 
 // Purpose: Constructs media file object
@@ -617,34 +943,35 @@ CMediaFile::CMediaFile()
     : m_FileType(MF_Unknown)
 {}
 
-bool CMediaFile::Create(QFileInfo mediaFile, QString szPath)
+bool CMediaFile::Create(QFileInfo &mediaFile, QString szPath)
 {
     m_szFilePaht = szPath;
     m_szFileName = mediaFile.fileName();
 
     if(mediaFile.suffix().toUpper() == "VOB")
         m_FileType = MF_VOB;
-    else if(mediaFile.suffix().toUpper() == "AVI")
+    else if(mediaFile.suffix().toUpper() == "AVI" || mediaFile.suffix().toUpper() == "MPG" || mediaFile.suffix().toUpper() == "MP4" ||
+            mediaFile.suffix().toUpper() == "FLV")
         m_FileType = MF_AVI;
     else if(mediaFile.suffix().toUpper() == "MP3")
         m_FileType = MF_CDG;
     else
         m_FileType = MF_Unknown;
 
-    int iPos = m_szFileName.lastIndexOf("-");
+    int iPos = m_szFileName.lastIndexOf(" - ");
     if(iPos > 0)
     {
-        m_szTitle = m_szFileName.left(iPos).simplified();
-        m_szArtist = m_szFileName.mid(iPos+1).simplified();
+        m_szArtist = m_szFileName.left(iPos).simplified();
+        m_szTitle = m_szFileName.mid(iPos+3).simplified();
     }
     else
         m_szTitle = m_szFileName;
 
-    iPos = m_szArtist.lastIndexOf(".");     // Artist name contains now file extension -> Get rid of it
+    iPos = m_szTitle.lastIndexOf(".");
     if(iPos > 0)
-        m_szArtist = m_szArtist.left(iPos).simplified();
+        m_szTitle = m_szTitle.left(iPos).simplified();
 
-    iPos = m_szTitle.lastIndexOf(".");      // When artist is not given file extension is in title...
+    iPos = m_szTitle.lastIndexOf("_");
     if(iPos > 0)
         m_szTitle = m_szTitle.left(iPos).simplified();
 
@@ -653,13 +980,17 @@ bool CMediaFile::Create(QFileInfo mediaFile, QString szPath)
         qDebug() << "ERROR: File"<< m_szFileName <<"Artist and Title is empty";
         m_FileType = MF_Unknown;
     }
+
+    m_iFileSize = mediaFile.size();
+    m_Created = mediaFile.created();
+    m_Modified = mediaFile.lastModified();
     return true;
 }
 
-QString CMediaFile::getExecCmd()
+QString CMediaFile::getExecCmd() const
 {
     QString cmd, player;
-    QSettings settings("Duo Liukko", "Karaoke");
+    QSettings settings;
 
     switch(m_FileType)
     {
@@ -667,14 +998,14 @@ QString CMediaFile::getExecCmd()
         player = settings.value("Media Player/VOB").toString();
         if(player.isEmpty())    // Forcing settings to default value
         {
-            settings.setValue("Media Player/VOB", "mplayer -fs \"%1\"");
+            settings.setValue("Media Player/VOB", "vlc -f \"%1\"");
         }
         break;
     case MF_AVI:
         player = settings.value("Media Player/AVI").toString();
         if(player.isEmpty())    // Forcing settings to default value
         {
-            settings.setValue("Media Player/AVI", "mplayer -fs \"%1\"");
+            settings.setValue("Media Player/AVI", "vlc -f \"%1\"");
         }
         break;
     case MF_CDG:
@@ -692,6 +1023,82 @@ QString CMediaFile::getExecCmd()
     return cmd;
 }
 
+QString CMediaFile::getPahtInLibrary() const
+{
+    QSharedPointer<CMediaFileLibrary> mLib = getParent();
+    if(mLib.isNull())
+        return m_szFilePaht;
+    QString szLibraryPath = mLib->getLocation();
+    int i = 1;
+
+    while(szLibraryPath.left(i) == m_szFilePaht.left(i) && i < szLibraryPath.length())
+        i++;
+    return m_szFilePaht.mid(i);
+}
+
+bool CMediaFile::moveToPreferredLocation(QSharedPointer<CMediaFileLibrary> mediaLib)
+{
+    QString orgFile, newFile, newPath, orgCdg, artistName, finalName, ext;
+    QDir dir;
+    int n;
+
+    if(mediaLib.isNull())
+        mediaLib = m_Parent;
+
+    orgFile = getPaht() + QDir::separator() + getFileName();
+    if(orgFile.lastIndexOf(".") > 0)
+        ext = orgFile.mid(orgFile.lastIndexOf("."));
+
+    artistName = getArtist();
+    if(artistName != "")
+    {
+        orgCdg = artistName.left(1).toUpper();
+        if(orgCdg >= "0" && orgCdg < "9")
+            orgCdg = "0-9";
+
+        newFile = getArtist() + " - " + getTitle(); // No file extension (yet)
+    }
+    else
+    {
+        artistName = "Unknown";
+        newFile = getTitle();
+
+    }
+
+    newPath = mediaLib->getLocation() + QDir::separator() + orgCdg + QDir::separator() + artistName;
+
+    finalName = newPath + QDir::separator() + newFile + ext;
+    if(finalName == orgFile)
+        return true;        // Meida file is in correct place no need to move anything
+
+    dir.mkpath(newPath);
+
+    for(n=1; n<10; n++)
+    {
+        finalName = newPath + QDir::separator() + newFile;
+        if(n > 1)
+            finalName += QString("_%1").arg(n);
+
+        if(QFile::rename(orgFile, finalName + ext) == true)
+        {
+            orgFile = orgFile.left(orgFile.lastIndexOf("."));
+            if(QFile::exists(orgFile + ".cdg"))
+                QFile::rename(orgFile + ".cdg", finalName + ".cdg");
+            else if(QFile::exists(orgFile + ".CDG"))
+                QFile::rename(orgFile + ".CDG", finalName + ".cdg");
+
+            m_szFilePaht = newPath;
+            m_szFileName = newFile;
+            if(n > 1)
+                m_szFileName += QString("_%1").arg(n);
+            m_szFileName += ext;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 QString CMediaFile::calcHash()
 {
     QFile file(m_szFilePaht + QDir::separator() + m_szFileName);
@@ -706,7 +1113,7 @@ QString CMediaFile::calcHash()
     }
     return "";
 }
-QWeakPointer<CMediaFileLibrary> CMediaFile::getParent()
+QWeakPointer<CMediaFileLibrary> CMediaFile::getParent() const
 {
     return m_Parent;
 }
@@ -716,6 +1123,31 @@ void CMediaFile::setParent(QSharedPointer<CMediaFileLibrary> mediaLib)
     m_Parent = mediaLib;
 }
 
+void CMediaFile::addTag(QString szName, QString szValue)
+{
+    if(szName.isEmpty()) return;
+
+    QSharedPointer<CFileTag> tag = QSharedPointer<CFileTag>(new CFileTag(szName, szValue));
+    m_tags.push_back(tag);
+}
+
+void CMediaFile::updateTag(QString szName, QString szValue)
+{
+    if(szName.isEmpty()) return;
+
+    QSharedPointer<CFileTag> tag = QSharedPointer<CFileTag>(new CFileTag(szName, szValue));
+    int i;
+
+    for(i=0; i<m_tags.size(); i++)
+    {
+        if(m_tags[i]->name() == szName)
+        {
+            m_tags[i] = tag;
+            return;
+        }
+    }
+    m_tags.push_back(tag);
+}
 
 bool CMediaFile::readAudioTrackInfo()
 {
@@ -786,6 +1218,25 @@ void CMediaFile::readXmlData(QXmlStreamReader *reader)
             }
             else if(IS_START_ELEM(reader, NOD_HASH))
                 m_szHash = reader->readElementText();
+            else if(IS_START_ELEM(reader, NOD_SIZE))
+                m_iFileSize = reader->readElementText().toInt();
+            else if(IS_START_ELEM(reader, NOD_CREATED))
+                m_Created = QDateTime::fromString(reader->readElementText());
+            else if(IS_START_ELEM(reader, NOD_MODIFIED))
+                m_Modified = QDateTime::fromString(reader->readElementText());
+            else if(IS_START_ELEM(reader, NOD_TAGS))
+            {
+                while(!reader->atEnd() && !(reader->isEndElement() && reader->name() == NOD_TAGS))
+                {
+                    if(IS_START_ELEM(reader, NOD_TAG))
+                    {
+                        QString name = reader->attributes().value(ATTR_NAME).toString(),
+                                value = reader->readElementText();
+                        addTag(name, value);
+                    }
+                    reader->readNext();
+                }
+            }
 
             reader->readNext();
         }
@@ -838,6 +1289,21 @@ void CMediaFile::writeXmlData(QXmlStreamWriter *writer)
         writer->writeEndElement();
     }
     writer->writeTextElement(NOD_HASH,      m_szHash);
+    writer->writeTextElement(NOD_SIZE,      QString("%1").arg(m_iFileSize));
+    writer->writeTextElement(NOD_CREATED,   m_Created.toString());
+    writer->writeTextElement(NOD_MODIFIED,  m_Modified.toString());
+    if(m_tags.size() > 0)
+    {
+        writer->writeStartElement(NOD_TAGS);
+        for(i=0; i<m_tags.size(); i++)
+        {
+            writer->writeStartElement(NOD_TAG);
+            writer->writeAttribute(ATTR_NAME, m_tags[i]->name());
+            writer->writeCharacters(m_tags[i]->value());
+            writer->writeEndElement();
+        }
+        writer->writeEndElement();
+    }
     writer->writeEndElement();
 }
 

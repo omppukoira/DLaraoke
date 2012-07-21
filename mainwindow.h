@@ -24,12 +24,15 @@ public:
 private:
     Ui::MainWindow *ui;
     CMediaFileModel *m_pFiles;                  // Media file view information
+    CDetailMediaFileModel *m_pDetailFiles;      // Detailled file view info
+
     QSharedPointer<CMediaFileLibraries> m_Libraries;
     QSortFilterProxyModel *m_pSortModel;        // Sort & Search filter for media files
     QProcess m_player;
 
     QLabel *m_pInfo;
-
+    void readMediaData(QString szFileName);
+    void writeMediaData(QString fileName);
 protected:
     virtual bool eventFilter(QObject *target, QEvent *event);
     virtual void closeEvent(QCloseEvent *);

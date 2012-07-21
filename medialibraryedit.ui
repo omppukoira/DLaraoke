@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>566</width>
+    <width>584</width>
     <height>396</height>
    </rect>
   </property>
@@ -110,16 +110,37 @@
             </spacer>
            </item>
            <item>
+            <widget class="QPushButton" name="bRelocateMediaFiles">
+             <property name="text">
+              <string>Relocate</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="bRemoveDuplicates">
+             <property name="text">
+              <string>rm Duplicates</string>
+             </property>
+            </widget>
+           </item>
+           <item>
             <widget class="QPushButton" name="bExportData">
              <property name="focusPolicy">
               <enum>Qt::WheelFocus</enum>
              </property>
              <property name="text">
-              <string>Export...</string>
+              <string>CSV</string>
              </property>
             </widget>
            </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="isMainLib">
+           <property name="text">
+            <string>Main Library</string>
+           </property>
+          </widget>
          </item>
          <item>
           <spacer name="verticalSpacer">
