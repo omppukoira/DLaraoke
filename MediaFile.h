@@ -154,7 +154,10 @@ public:
     //
     int count()                                 {return m_Libs.size();}
 
-    void clear()                                {m_Libs.clear();}
+    void clear()                                {
+                                                    m_Libs.clear();
+                                                    collectMediaFiles();
+                                                }
 
     int fileCount();
 

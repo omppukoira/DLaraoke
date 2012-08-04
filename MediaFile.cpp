@@ -729,7 +729,11 @@ void CMediaFileLibrary::addFiles(QString szDirectory, bool bPrescan, QProgressDi
     szFilters = m_szMediaFileTypes.split(";", QString::SkipEmptyParts);
 
     if(pPrgDlg != NULL)
+    {
+        if(pPrgDlg->wasCanceled())
+            return;
         pPrgDlg->setLabelText(szDirectory);
+    }
 
     foreach (QString file, mlib.entryList(szFilters, QDir::Files))
     {
@@ -762,7 +766,11 @@ void CMediaFileLibrary::addFiles(QString szDirectory, bool bPrescan, QProgressDi
                 }
 
                 if(pPrgDlg != NULL)
+                {
+                    if(pPrgDlg->wasCanceled())
+                        return;
                     pPrgDlg->setValue(m_MediaFiles.size());
+                }
             }
         }
     }

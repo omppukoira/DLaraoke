@@ -160,6 +160,7 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
 
             pal.setColor(ui->leSearchText->backgroundRole(), QColor("#DDAA00") );
             ui->leSearchText->setPalette(pal);
+            ui->leSearchText->selectAll();
         }
         else if(event->type() == QEvent::FocusOut)
         {
@@ -203,7 +204,7 @@ void MainWindow::scanMediaFiles()
     appendReadCancel();
 
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"),
-                                "/home", QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+                                QDir::homePath(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 
     if(!dir.isEmpty())
     {
@@ -220,10 +221,14 @@ void MainWindow::scanMediaFiles()
         {
             QSharedPointer<CMediaFileLibrary> lib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
             QProgressDialog progress("Scanning media files...", "Cancel", 0, tmpLib->count(), this);
-            progress.setWindowModality(Qt::WindowModal);
+            progress.setModal(true);
+            progress.setMinimumDuration(0); // Force QProgressDialog to be shown
+            progress.setValue(0);
+            DLaraoke::processEvents();
+
             lib->setThis(lib);
             lib->scanMediaFiles(dir, false, &progress);
-            if(lib->count() == tmpLib->count())
+            if(!progress.wasCanceled())
             {
                 m_Libraries->addMediaLibrary(lib);
                 setFilters();
@@ -231,6 +236,7 @@ void MainWindow::scanMediaFiles()
             else
             {
                 QMessageBox::warning(this, "Scan media files", "Meida file scan cancelled");
+                setFilters();
             }
         }
     }
@@ -300,6 +306,7 @@ void MainWindow::playFile(const QModelIndex &index)
     if(m_player.state() != QProcess::NotRunning)
     {
         m_player.kill();
+        m_player.waitForFinished();
     }
     m_player.start(m_Libraries->getMediaFile(file.row())->getExecCmd());
 }

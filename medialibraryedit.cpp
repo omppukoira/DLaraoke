@@ -70,6 +70,7 @@ void MediaLIbraryEdit::exportLibraryData()
 {
     QSharedPointer<CMediaFileLibrary> lib = getCurrentMediaLibrary();
     bool bTmp = lib->showUniqueFiles();
+    QString szArtist, szTitle;
 
     if(!lib.isNull())
     {
@@ -99,7 +100,13 @@ void MediaLIbraryEdit::exportLibraryData()
             for(i=0; i<lib->count(); i++)
             {
                 mediaFile = lib->getMediaFile(i);
-                exportData << mediaFile->getArtist() << ";" << mediaFile->getTitle() << "\n";
+                if(mediaFile->getArtist().toUpper() != szArtist ||
+                   mediaFile->getTitle().toUpper() != szTitle)
+                {
+                    szArtist = mediaFile->getArtist().toUpper();
+                    szTitle = mediaFile->getTitle().toUpper();
+                    exportData << mediaFile->getArtist() << ";" << mediaFile->getTitle() << "\n";
+                }
             }
         }
         lib->setShowUniqueFiles(bTmp);
