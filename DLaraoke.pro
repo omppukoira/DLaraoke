@@ -15,7 +15,6 @@ SOURCES += main.cpp\
     MediaFile.cpp \
     mediafileview.cpp \
     ctool.cpp \
-    medialibraryedit.cpp \
     settingsedit.cpp \
     dlaraoke.cpp
 
@@ -23,10 +22,8 @@ HEADERS  += mainwindow.h \
     MediaFile.h \
     mediafileview.h \
     ctool.h \
-    medialibraryedit.h \
     settingsedit.h \
     dlaraoke.h
 
 FORMS    += mainwindow.ui \
-    medialibraryedit.ui \
     settingsedit.ui

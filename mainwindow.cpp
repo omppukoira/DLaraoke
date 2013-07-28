@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "medialibraryedit.h"
 #include "settingsedit.h"
 #include "dlaraoke.h"
 
@@ -12,18 +11,17 @@
 #include <QFile>
 #include <QProgressDialog>
 #include <QDesktopServices>
+#include <QtGlobal>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    m_Libraries(new CMediaFileLibraries())
+    m_pLibrary(NULL)
 {
-    m_pFiles = new CMediaFileModel();
-    m_pFiles->setMediaLibraries(m_Libraries);
+    m_pFiles = new CMediaModel();
     m_pSortModel = new QSortFilterProxyModel();
-
-    m_pDetailFiles = new CDetailMediaFileModel();
-    m_pDetailFiles->setMediaLibraries(m_Libraries);
+    m_pLibrary = new CMediaLibrary();
 
     ui->setupUi(this);
     ui->tvMediaFiles->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -31,8 +29,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->tvMediaFiles->setModel(m_pSortModel);
     m_pSortModel->setSourceModel(m_pFiles);
 
-    ui->treeMediaFiles->setModel(m_pDetailFiles);
-
+    // ui->treeMediaFiles->setModel(m_pDetailFiles);
     m_pInfo = new QLabel();
     ui->sbMain->addWidget(m_pInfo, 1);
 
@@ -41,7 +38,6 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionWrite_media_data , SIGNAL(triggered()), this, SLOT(writeMediaData()));
     connect(ui->action_Exit, SIGNAL(triggered()), this, SLOT(close()));
 
-    connect(ui->actionMedia_Libraries, SIGNAL(triggered()), this, SLOT(editMediaLibraries()));
     connect(ui->actionEdit_Settings, SIGNAL(triggered()), this, SLOT(editSettings()));
 
     connect(ui->tvMediaFiles, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(playFile(QModelIndex)));
@@ -66,6 +62,7 @@ MainWindow::~MainWindow()
     delete ui;
     delete m_pSortModel;
     delete m_pFiles;
+    delete m_pLibrary;
 }
 
 void MainWindow::closeEvent(QCloseEvent *)
@@ -77,18 +74,18 @@ void MainWindow::readSettings()
 {
 
     DLaraoke::settings().beginGroup("MainWindow");
-    ui->tvMediaFiles->setColumnWidth(CMediaFileModel::MFM_Artist,  DLaraoke::settings().value("Artist_Len", QVariant(200)).toInt());
-    ui->tvMediaFiles->setColumnWidth(CMediaFileModel::MFM_Title,   DLaraoke::settings().value("Title_Len",  QVariant(350)).toInt());
-    ui->tvMediaFiles->setColumnWidth(CMediaFileModel::MFM_Type,    DLaraoke::settings().value("Type_Len",   QVariant(70)).toInt());
+    ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Artist,  DLaraoke::settings().value("Artist_Len", QVariant(200)).toInt());
+    ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Title,   DLaraoke::settings().value("Title_Len",  QVariant(350)).toInt());
+    ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Type,    DLaraoke::settings().value("Type_Len",   QVariant(70)).toInt());
     DLaraoke::settings().endGroup();
 }
 
 void MainWindow::writeSettings()
 {
     DLaraoke::settings().beginGroup("MainWindow");
-    DLaraoke::settings().setValue("Artist_Len",  ui->tvMediaFiles->columnWidth(CMediaFileModel::MFM_Artist));
-    DLaraoke::settings().setValue("Title_Len",   ui->tvMediaFiles->columnWidth(CMediaFileModel::MFM_Title));
-    DLaraoke::settings().setValue("Type_Len",    ui->tvMediaFiles->columnWidth(CMediaFileModel::MFM_Type));
+    DLaraoke::settings().setValue("Artist_Len",  ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Artist));
+    DLaraoke::settings().setValue("Title_Len",   ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Title));
+    DLaraoke::settings().setValue("Type_Len",    ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Type));
     DLaraoke::settings().endGroup();
     if(DLaraoke::settings().value("Color/Global Unique", "").toString().isEmpty())
         DLaraoke::settings().setValue("Color/Global Unique", 0);
@@ -107,7 +104,7 @@ void MainWindow::writeSettings()
 
 bool MainWindow::eventFilter(QObject *target, QEvent *event)
 {
-    if(target == ui->tvMediaFiles)              // Messages from tvMediaFiles
+    if(target == ui->tvMediaFiles)              // Messages from main tree view
         if(event->type() == QEvent::KeyPress)
         {
             QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
@@ -122,7 +119,7 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
                 return true;
             }
 
-            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier  )
+            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
             {
                 ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
             }
@@ -173,89 +170,72 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
     return QMainWindow::eventFilter(target, event);
 }
 
-bool MainWindow::appendReadCancel()
-{
-    if(m_Libraries->count() > 0)
-    {
-        int ret = QMessageBox::question(this, tr("Media files already in memory"),
-                    tr("Clear current files from memory"), QMessageBox::Yes | QMessageBox::No  | QMessageBox::Cancel);
-
-        if(ret == QMessageBox::Yes)
-            m_Libraries->clear();
-        else if(ret == QMessageBox::Cancel)
-            return false;
-    }
-    return true;
-}
-
 void MainWindow::setFilters()
 {
-    m_pFiles->resetModel();
+    if(m_pLibrary != NULL)
+        qDebug() << "setFilters for lib ["<< m_pLibrary->getName() <<"]";
+    else
+        qDebug("setFilters for no lib");
 
-    m_pSortModel->sort(CMediaFileModel::MFM_Title);   // Sort by title name
-    m_pSortModel->setFilterKeyColumn(-1);             // Search from all columns
+    m_pFiles->setMediaLibrary(m_pLibrary);
+
+    m_pSortModel->sort(CMediaModel::MFM_Title);         // Sort by title name
+    m_pSortModel->setFilterKeyColumn(-1);               // Search from all columns
     m_pSortModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
-    m_pDetailFiles->setMediaLibraries(m_Libraries);
+    // m_pDetailFiles->setMediaLibrary(m_Library);
 }
 
 void MainWindow::scanMediaFiles()
 {
-    appendReadCancel();
-
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"),
                                 QDir::homePath(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 
     if(!dir.isEmpty())
     {
-        QSharedPointer<CMediaFileLibrary> tmpLib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
-        // tmpLib->setThis(tmpLib);
-        tmpLib->setShowUniqueFiles(false);
-        tmpLib->scanMediaFiles(dir, true, NULL);
-        if(tmpLib->count() <= 0)
+        CMediaLibrary *pTmpLib = new CMediaLibrary();
+        pTmpLib->scanMediaFiles(dir, true, NULL);
+        if(pTmpLib->count() <= 0)
         {
             QMessageBox::warning(this, tr("Media files"), tr("No media files found"));
+            delete pTmpLib;
             return;
         }
         else
         {
-            QSharedPointer<CMediaFileLibrary> lib = QSharedPointer<CMediaFileLibrary>(new CMediaFileLibrary());
-            QProgressDialog progress("Scanning media files...", "Cancel", 0, tmpLib->count(), this);
+            QProgressDialog progress("Scanning media files...", "Cancel", 0, pTmpLib->count(), this);
             progress.setModal(true);
-            progress.setMinimumDuration(0); // Force QProgressDialog to be shown
+            progress.setMinimumDuration(0);             // Force QProgressDialog to be shown
             progress.setValue(0);
             DLaraoke::processEvents();
 
-            lib->setThis(lib);
-            lib->scanMediaFiles(dir, false, &progress);
+            pTmpLib->clear();
+            pTmpLib->scanMediaFiles(dir, false, &progress);
             if(!progress.wasCanceled())
             {
-                m_Libraries->addMediaLibrary(lib);
+                if(m_pLibrary != NULL) delete m_pLibrary;
+                m_pLibrary = pTmpLib;
+                m_pLibrary->setName(dir);
+                qDebug("Scanned %d media files", m_pLibrary->count());
                 setFilters();
             }
             else
             {
                 QMessageBox::warning(this, "Scan media files", "Meida file scan cancelled");
                 setFilters();
+                delete pTmpLib;
             }
         }
     }
 }
 
-void MainWindow::writeMediaData(QString fileName)
+void MainWindow::readMediaData()
 {
-    QFile file(fileName);
-
-    if(!file.open(QFile::WriteOnly | QFile::Text))
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), QDir::homePath(), tr("XML files (*.xml)"));
+    if(!fileName.isEmpty())
     {
-        QMessageBox::warning(this, tr("Write data"), tr("Unable to open file for writing"));
-        return;
+        readMediaData(fileName);
     }
-
-    QXmlStreamWriter writer(&file);
-    writer.setAutoFormatting(true);
-
-    m_Libraries->writeMediaLibraries(&writer);
 }
 
 void MainWindow::readMediaData(QString fileName)
@@ -270,17 +250,12 @@ void MainWindow::readMediaData(QString fileName)
     }
 
     reader.setDevice(&fileIn);
-    m_Libraries->readMediaLibraries(&reader);
+    while(!reader.atEnd() && !(reader.isStartElement() && reader.name() == CMediaLibrary::NOD_MEDIA_LIBRARY))
+        reader.readNext();
+    if(reader.atEnd()) return;
+
+    m_pLibrary->readXmlData(&reader);
     setFilters();
-}
-
-void MainWindow::readMediaData()
-{
-    appendReadCancel();
-
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Media library"), QDir::homePath(), tr("XML files (*.xml)"));
-    if(!fileName.isEmpty())
-        readMediaData(fileName);
 }
 
 void MainWindow::writeMediaData()
@@ -298,9 +273,25 @@ void MainWindow::writeMediaData()
     }
 }
 
+void MainWindow::writeMediaData(QString fileName)
+{
+    QFile file(fileName);
+
+    if(!file.open(QFile::WriteOnly | QFile::Text))
+    {
+        QMessageBox::warning(this, tr("Write data"), tr("Unable to open file for writing"));
+        return;
+    }
+
+    QXmlStreamWriter writer(&file);
+    writer.setAutoFormatting(true);
+    m_pLibrary->writeXmlData(&writer);
+}
+
 void MainWindow::playFile(const QModelIndex &index)
 {
     QModelIndex file;                                   // File being clicked
+    CMediaFile *pFile;
 
     file = m_pSortModel->mapToSource(index);            // Remap from sorted and searched filter
     if(m_player.state() != QProcess::NotRunning)
@@ -308,20 +299,21 @@ void MainWindow::playFile(const QModelIndex &index)
         m_player.kill();
         m_player.waitForFinished();
     }
-    m_player.start(m_Libraries->getMediaFile(file.row())->getExecCmd());
+    pFile = m_pLibrary->getMediaFile(file.row());
+    if(pFile != NULL)
+    {
+        m_player.start(pFile->getExecCmd());
+    }
+    else
+    {
+        QMessageBox::warning(this, tr("Play file"), tr("Mediafile not found"));
+    }
 }
 
 void MainWindow::searchTextChange(QString szText)
 {
     ui->tvMediaFiles->clearSelection();
     m_pSortModel->setFilterFixedString(szText);
-}
-
-void MainWindow::editMediaLibraries()
-{
-    MediaLIbraryEdit *dlg = new MediaLIbraryEdit(m_Libraries);
-
-    dlg->exec();
 }
 
 void MainWindow::editSettings()
