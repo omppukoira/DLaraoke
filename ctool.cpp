@@ -39,3 +39,22 @@ QString CTool::xmlNodeInfo(QXmlStreamReader &reader)
     }
     return szNodeInfo;
 }
+
+QString CTool::makeSuffix(QString szFile, QString szSuffix)
+{
+    int iPos;
+
+    iPos = szFile.lastIndexOf(".");
+    if(iPos > 0)
+    {
+        szFile = szFile.left(iPos);
+        szFile+= ".";
+        szFile+= szSuffix;
+    }
+    else
+    {
+        szFile+= ".";
+        szFile+= szSuffix;
+    }
+    return szFile;
+}

@@ -7,6 +7,7 @@
 #include <QLabel>
 
 #include "MediaFile.h"
+#include "mediafilterproxymodel.h"
 
 namespace Ui {
     class MainWindow;
@@ -25,7 +26,7 @@ private:
     CMediaModel *m_pFiles;                      // Media file view information
     CMediaLibrary *m_pLibrary;                  // Current media library
 
-    QSortFilterProxyModel *m_pSortModel;        // Sort & Search filter for media files
+    MediaFilterProxyModel *m_pSortModel;        // Sort & Search filter for media files
     QProcess m_player;
     QLabel *m_pInfo;
 
@@ -48,9 +49,15 @@ private slots:
     void readMediaData();
     void writeMediaData();
     void editSettings();
+    void editMediaLibraries();
 
+    void playCurrent();
     void playFile(const QModelIndex &index);
     void searchTextChange(QString szText);
+
+    void setViewStars();
+
+    void renameCurrent();
 };
 
 #endif // MAINWINDOW_H

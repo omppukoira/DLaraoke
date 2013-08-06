@@ -2,6 +2,8 @@
 #include "ui_mainwindow.h"
 #include "settingsedit.h"
 #include "dlaraoke.h"
+#include "ctool.h"
+#include "medialibraryedit.h"
 
 #include <QMessageBox>
 #include <QFileDialog>
@@ -13,6 +15,7 @@
 #include <QDesktopServices>
 #include <QtGlobal>
 #include <QDebug>
+#include <QInputDialog>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -20,8 +23,11 @@ MainWindow::MainWindow(QWidget *parent) :
     m_pLibrary(NULL)
 {
     m_pFiles = new CMediaModel();
-    m_pSortModel = new QSortFilterProxyModel();
+    m_pSortModel = new MediaFilterProxyModel();
     m_pLibrary = new CMediaLibrary();
+
+    m_pSortModel->setStars(4);
+    m_pSortModel->setDynamicSortFilter(true);
 
     ui->setupUi(this);
     ui->tvMediaFiles->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -29,19 +35,45 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->tvMediaFiles->setModel(m_pSortModel);
     m_pSortModel->setSourceModel(m_pFiles);
 
+    QAction *play = new QAction("Play", ui->tvMediaFiles);
+    QAction *rename = new QAction("Rename", ui->tvMediaFiles);
+    play->setShortcut(QKeySequence("Ctrl+P"));
+    rename->setShortcut(QKeySequence(Qt::Key_F2));
+    ui->tvMediaFiles->addAction(play);
+    ui->tvMediaFiles->addAction(rename);
+
+    ui->view_star_1->setShortcut(Qt::CTRL + Qt::Key_F1);
+    ui->view_star_2->setShortcut(Qt::CTRL + Qt::Key_F2);
+    ui->view_star_3->setShortcut(Qt::CTRL + Qt::Key_F3);
+    ui->view_star_4->setShortcut(Qt::CTRL + Qt::Key_F4);
+    ui->view_star_5->setShortcut(Qt::CTRL + Qt::Key_F5);
+
+    connect(play,   SIGNAL(triggered()), this, SLOT(playCurrent()));
+    connect(rename, SIGNAL(triggered()), this, SLOT(renameCurrent()));
+
+    ui->tvMediaFiles->setContextMenuPolicy(Qt::ActionsContextMenu);
+
     // ui->treeMediaFiles->setModel(m_pDetailFiles);
     m_pInfo = new QLabel();
     ui->sbMain->addWidget(m_pInfo, 1);
 
-    connect(ui->actionScan_media_library, SIGNAL(triggered()), this, SLOT(scanMediaFiles()));
-    connect(ui->actionRead_media_data, SIGNAL(triggered()), this, SLOT(readMediaData()));
-    connect(ui->actionWrite_media_data , SIGNAL(triggered()), this, SLOT(writeMediaData()));
-    connect(ui->action_Exit, SIGNAL(triggered()), this, SLOT(close()));
+    connect(ui->actionScan_media_library,   SIGNAL(triggered()), this, SLOT(scanMediaFiles()));
+    connect(ui->actionRead_media_data,      SIGNAL(triggered()), this, SLOT(readMediaData()));
+    connect(ui->actionWrite_media_data,     SIGNAL(triggered()), this, SLOT(writeMediaData()));
+    connect(ui->action_Exit,                SIGNAL(triggered()), this, SLOT(close()));
 
-    connect(ui->actionEdit_Settings, SIGNAL(triggered()), this, SLOT(editSettings()));
+    connect(ui->actionEdit_Settings,        SIGNAL(triggered()), this, SLOT(editSettings()));
 
-    connect(ui->tvMediaFiles, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(playFile(QModelIndex)));
-    connect(ui->leSearchText, SIGNAL(textChanged(QString)), this, SLOT(searchTextChange(QString)));
+    connect(ui->tvMediaFiles,               SIGNAL(doubleClicked(QModelIndex)), this, SLOT(playFile(QModelIndex)));
+    connect(ui->leSearchText,               SIGNAL(textChanged(QString)), this, SLOT(searchTextChange(QString)));
+
+    connect(ui->view_star_1,                SIGNAL(triggered()), this, SLOT(setViewStars()));
+    connect(ui->view_star_2,                SIGNAL(triggered()), this, SLOT(setViewStars()));
+    connect(ui->view_star_3,                SIGNAL(triggered()), this, SLOT(setViewStars()));
+    connect(ui->view_star_4,                SIGNAL(triggered()), this, SLOT(setViewStars()));
+    connect(ui->view_star_5,                SIGNAL(triggered()), this, SLOT(setViewStars()));
+
+    connect(ui->action_Libraries,           SIGNAL(triggered()), this, SLOT(editMediaLibraries()));
 
     // Event filters
     ui->tvMediaFiles->installEventFilter(this);
@@ -50,11 +82,10 @@ MainWindow::MainWindow(QWidget *parent) :
 
     readSettings();
 
-    QString mainLib = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
-    mainLib += QDir::separator();
-    mainLib += "mainLib.xml";
-    if(QFile::exists(mainLib))
-        readMediaData(mainLib);
+    if(DLaraoke::settings().value("MainWindow/MediaLibrary", "").toString() != "")
+    {
+        readMediaData(DLaraoke::settings().value("MainWindow/MediaLibrary", "").toString());
+    }
 }
 
 MainWindow::~MainWindow()
@@ -77,6 +108,8 @@ void MainWindow::readSettings()
     ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Artist,  DLaraoke::settings().value("Artist_Len", QVariant(200)).toInt());
     ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Title,   DLaraoke::settings().value("Title_Len",  QVariant(350)).toInt());
     ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Type,    DLaraoke::settings().value("Type_Len",   QVariant(70)).toInt());
+    ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Date,    DLaraoke::settings().value("DateColumn", QVariant(95)).toInt());
+    ui->tvMediaFiles->setColumnWidth(CMediaModel::MFM_Stars,   DLaraoke::settings().value("MediaStars", QVariant(80)).toInt());
     DLaraoke::settings().endGroup();
 }
 
@@ -86,20 +119,10 @@ void MainWindow::writeSettings()
     DLaraoke::settings().setValue("Artist_Len",  ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Artist));
     DLaraoke::settings().setValue("Title_Len",   ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Title));
     DLaraoke::settings().setValue("Type_Len",    ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Type));
+    DLaraoke::settings().setValue("DateColumn",  ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Date));
+    DLaraoke::settings().setValue("MediaStars",  ui->tvMediaFiles->columnWidth(CMediaModel::MFM_Stars));
+    DLaraoke::settings().setValue("MediaLibrary", m_pLibrary->getMediaLibraryFile());
     DLaraoke::settings().endGroup();
-    if(DLaraoke::settings().value("Color/Global Unique", "").toString().isEmpty())
-        DLaraoke::settings().setValue("Color/Global Unique", 0);
-    if(DLaraoke::settings().value("Color/Library Unique", "").toString().isEmpty())
-        DLaraoke::settings().setValue("Color/Library Unique", 0);
-    if(DLaraoke::settings().value("MediaFile/md5Size", "").toString().isEmpty())
-        DLaraoke::settings().setValue("MediaFile/md5Size", 1024*1024*100);
-    if(DLaraoke::settings().value("MediaFile/Show Global Unique", "").toString().isEmpty())
-        DLaraoke::settings().setValue("MediaFile/Show Global Unique", 1);
-    if(DLaraoke::settings().value("MediaFile/Show Library Unique", "").toString().isEmpty())
-        DLaraoke::settings().setValue("MediaFile/Show Library Unique", 1);
-    if(DLaraoke::settings().value("MediaFile/Read audio tracks", "").toString().isEmpty())
-        DLaraoke::settings().setValue("MediaFile/Read audio tracks", 0);
-
 }
 
 bool MainWindow::eventFilter(QObject *target, QEvent *event)
@@ -119,21 +142,6 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
                 return true;
             }
 
-            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
-            {
-                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
-            }
-        }
-
-    if(target == ui->treeMediaFiles)
-        if(event->type() == QEvent::KeyPress)
-        {
-            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
-
-            if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
-            {
-                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
-            }
         }
 
     if(target == ui->leSearchText)          // Messages from leSearchText
@@ -145,10 +153,6 @@ bool MainWindow::eventFilter(QObject *target, QEvent *event)
             {
                 ui->tvMediaFiles->setFocus();
                 return true;
-            }
-            else if((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && keyEvent->modifiers() == Qt::ControlModifier)
-            {
-                ui->stwMain->setCurrentIndex((ui->stwMain->currentIndex()+1)%2 );
             }
         }
         else if(event->type() == QEvent::FocusIn)
@@ -240,21 +244,9 @@ void MainWindow::readMediaData()
 
 void MainWindow::readMediaData(QString fileName)
 {
-    QFile fileIn(fileName);
-    QXmlStreamReader reader;
-
-    if(!fileIn.open(QFile::ReadOnly | QFile::Text))
-    {
-        QMessageBox::warning(this, tr("Read Media library"), tr("Failed to open file [%1]").arg(fileName));
-        return;
-    }
-
-    reader.setDevice(&fileIn);
-    while(!reader.atEnd() && !(reader.isStartElement() && reader.name() == CMediaLibrary::NOD_MEDIA_LIBRARY))
-        reader.readNext();
-    if(reader.atEnd()) return;
-
-    m_pLibrary->readXmlData(&reader);
+    if(m_pLibrary == NULL)
+        m_pLibrary = new CMediaLibrary();
+    m_pLibrary->readXmlData(fileName);
     setFilters();
 }
 
@@ -269,23 +261,23 @@ void MainWindow::writeMediaData()
                                     QDir::homePath(), tr("XML files (*.xml)"));
     if(!fileOut.isEmpty())
     {
+        fileOut = CTool::makeSuffix(fileOut, "xml");
         writeMediaData(fileOut);
     }
 }
 
 void MainWindow::writeMediaData(QString fileName)
 {
-    QFile file(fileName);
+    if(m_pLibrary != NULL)
+        m_pLibrary->writeXmlData(fileName);
+}
 
-    if(!file.open(QFile::WriteOnly | QFile::Text))
+void MainWindow::playCurrent()
+{
+    if(ui->tvMediaFiles->currentIndex().isValid())
     {
-        QMessageBox::warning(this, tr("Write data"), tr("Unable to open file for writing"));
-        return;
+        playFile(ui->tvMediaFiles->currentIndex());
     }
-
-    QXmlStreamWriter writer(&file);
-    writer.setAutoFormatting(true);
-    m_pLibrary->writeXmlData(&writer);
 }
 
 void MainWindow::playFile(const QModelIndex &index)
@@ -316,6 +308,44 @@ void MainWindow::searchTextChange(QString szText)
     m_pSortModel->setFilterFixedString(szText);
 }
 
+void MainWindow::setViewStars()
+{
+    if(sender() == ui->view_star_1)
+        m_pSortModel->setStars(1);
+    else if(sender() == ui->view_star_2)
+        m_pSortModel->setStars(2);
+    else if(sender() == ui->view_star_3)
+        m_pSortModel->setStars(3);
+    else if(sender() == ui->view_star_4)
+        m_pSortModel->setStars(4);
+    else if(sender() == ui->view_star_5)
+        m_pSortModel->setStars(5);
+}
+
+void MainWindow::renameCurrent()
+{
+    QModelIndex file;
+    CMediaFile *pFile;
+    QString fileName;
+    bool ok=false;
+
+    file = m_pSortModel->mapToSource(ui->tvMediaFiles->currentIndex());
+    pFile = m_pLibrary->getMediaFile(file.row());
+
+    if(pFile != NULL)
+    {
+        fileName = pFile->getArtistTitle();
+        fileName = QInputDialog::getText(this, tr("New name"), tr(""), QLineEdit::Normal, fileName, &ok);
+        if(ok)
+        {
+            pFile->setArtistTitle(fileName);
+            pFile->renameFile();
+            m_pFiles->resetModel();
+        }
+    }
+
+}
+
 void MainWindow::editSettings()
 {
     SettingsEdit *dlg = new SettingsEdit("Duo Liukko", "Karaoke");
@@ -323,16 +353,12 @@ void MainWindow::editSettings()
     dlg->exec();
 }
 
+void MainWindow::editMediaLibraries()
+{
+    CMediaLibraryEdit *dlg = new CMediaLibraryEdit();
 
-
-
-
-
-
-
-
-
-
+    dlg->exec();
+}
 
 
 

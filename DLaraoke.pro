@@ -16,14 +16,19 @@ SOURCES += main.cpp\
     mediafileview.cpp \
     ctool.cpp \
     settingsedit.cpp \
-    dlaraoke.cpp
+    dlaraoke.cpp \
+    medialibraryedit.cpp \
+    mediafilterproxymodel.cpp
 
 HEADERS  += mainwindow.h \
     MediaFile.h \
     mediafileview.h \
     ctool.h \
     settingsedit.h \
-    dlaraoke.h
+    dlaraoke.h \
+    medialibraryedit.h \
+    mediafilterproxymodel.h
 
 FORMS    += mainwindow.ui \
-    settingsedit.ui
+    settingsedit.ui \
+    medialibraryedit.ui

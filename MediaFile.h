@@ -9,7 +9,7 @@
 #include <QDateTime>
 
 #include <vector>
-
+#include <set>
 
 using namespace std;
 
@@ -31,8 +31,8 @@ public:
         MFM_Artist = 0,
         MFM_Title = 1,
         MFM_Type = 2,
-        MFM_SearchText = 3,                  // Text to be searched
-        MFM_Date = 4
+        MFM_Date = 3,
+        MFM_Stars = 4
     } tMFMCols;
 
     void setMediaLibrary(CMediaLibrary *pLib);
@@ -115,16 +115,30 @@ public:
 
     static const QString m_szMediaFileTypes;    // List of supported mediafiles
 
+    static const QString NEW_FILE_DIR;
 protected:
     QString m_szMediaLibLocation,               // Location of meida library
             m_szName;                           // Media library name
+
+    QString m_szMediaLibraryFile;               // XML-file of media library data
     
     typedef vector<CMediaFile *> tMediaFiles;
     tMediaFiles m_MediaFiles;                   // All media files in library
+    tMediaFiles m_UniqueFiles;                  // Only one instance of Artist and Title
+
+    typedef map<QString, CMediaFile *> tMediaFileHashes;
+    tMediaFileHashes m_MediaFileHashes;
+
+    typedef list<pair<CMediaFile*, CMediaFile *> > tMediaFileDuplicates;
+    tMediaFileDuplicates m_MediaFileDuplicates;
 
     void addFile(CMediaFile *pFile);
 
     void addFiles(QString szDirectory, bool bPreScan, QProgressDialog *pPrgDlg);
+
+    int getMediaFilePoints(CMediaFile *pFile);
+    bool isAbove(CMediaFile *pFirst, CMediaFile *pSecond);
+    void collectUniqueFiles();
 
 public:
     CMediaLibrary();
@@ -137,13 +151,22 @@ public:
 
     CMediaFile *getMediaFile(int index) const;
 
+    QString getMediaLibraryFile() const;
+    void setMediaLibraryFile(QString szFile);
+
     void readXmlData(QXmlStreamReader *reader);
+    bool readXmlData(QString fileName);
+
     void writeXmlData(QXmlStreamWriter *writer);
+    bool writeXmlData(QString fileName);
 
     QString getName() const                     {return m_szName;}
     void setName(QString szName)                {m_szName = szName;}
 
-    QString getLocation()                       {return m_szMediaLibLocation;}
+    QString getLocation() const                 {return m_szMediaLibLocation;}
+
+    bool isInLibrary(CMediaFile *pFile);        // Is pFile in this media library
+    bool copyTo(CMediaFile *pFile);
 };
 
 class CAudioTrack
@@ -189,6 +212,7 @@ public:
     static const QString NOD_AUDIO_TRACKS, NOD_AUDIO_TRACK, ATTR_ID;
     static const QString NOD_HASH, NOD_SIZE, NOD_CREATED, NOD_MODIFIED;
     static const QString NOD_TAGS,NOD_TAG, ATTR_NAME;
+    static const QString NOD_STARS;
 
     static const QString NOD_FILEINFO;
 
@@ -209,13 +233,15 @@ private:
     QString m_szArtist,                     // Name of the artist in media file
             m_szTitle;                      // Song title
     tMediaFileType m_FileType;
-    vector<CAudioTrack> m_audioTracks;
+    typedef map<int, CAudioTrack> tAudiotracks;
+    tAudiotracks m_audioTracks;
                                             // ID's of audiotracks
     vector<CFileTag> m_tags;
 
     qint64 m_iFileSize;
     QString m_szHash;
     QDateTime m_Created, m_Modified;
+    int m_iStars;                           // 1-5
 
     CMediaLibrary *m_pMediaLibrary;
 
@@ -234,6 +260,8 @@ public:
     QString getFullName() const             {return m_szFilePaht + QDir::separator() + m_szFileName;}
     QString getArtist() const               {return m_szArtist;}
     QString getTitle() const                {return m_szTitle;}
+    QString getArtistTitle() const;
+    void setArtistTitle(QString szArtistTitle);
 
     int getSize() const                     {return m_iFileSize;}
     QDateTime getCreated() const            {return m_Created;}
@@ -245,6 +273,9 @@ public:
                                             }
     QString calcHash();
 
+    int getStars() const                    {return m_iStars;}
+    void setStars(int iStars);
+
     CMediaLibrary *getParent() const        {return m_pMediaLibrary;}
     void setParent(CMediaLibrary *pParent)  {m_pMediaLibrary = pParent;}
 
@@ -254,7 +285,7 @@ public:
     void addTag(QString szName, QString szValue);
     void updateTag(QString szName, QString szValue);
 
-    vector<CAudioTrack> audioTracks() const {return m_audioTracks;}
+    vector<CAudioTrack> audioTracks();
     bool readAudioTrackInfo();
 
     void readXmlData(QXmlStreamReader *reader);
@@ -265,6 +296,7 @@ public:
     bool isInfoChanged()                    {return m_isInfoChanged;}
 
     bool moveToPreferredLocation(CMediaLibrary *pMediaLib);
+    bool renameFile();
 };
 
 
