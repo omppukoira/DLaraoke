@@ -33,6 +33,7 @@ private:
     void readMediaData(QString szFileName);
     void writeMediaData(QString fileName);
 
+    CMediaFile *getCurrent();
 protected:
     virtual bool eventFilter(QObject *target, QEvent *event);
     virtual void closeEvent(QCloseEvent *);
@@ -44,18 +45,25 @@ protected:
 
     void setFilters();
 
+    void updateViewPlaylists();
+
 private slots:
     void scanMediaFiles();
     void readMediaData();
     void writeMediaData();
+    void writePalylist();
     void editSettings();
     void editMediaLibraries();
+    void editPlaylists();
 
     void playCurrent();
     void playFile(const QModelIndex &index);
     void searchTextChange(QString szText);
 
     void setViewStars();
+    void setViewLibrary();
+    void setViewPlaylist();
+    void addToPlaylist();
 
     void renameCurrent();
 };

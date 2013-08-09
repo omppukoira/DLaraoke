@@ -58,3 +58,20 @@ QString CTool::makeSuffix(QString szFile, QString szSuffix)
     }
     return szFile;
 }
+
+QString CTool::baseName(QString szFile)
+{
+    int iPos;
+
+    iPos = szFile.lastIndexOf(".");
+    if(iPos > 0)
+    {
+        return szFile.left(iPos);
+    }
+    else
+    {
+        return szFile;
+    }
+}
+
+

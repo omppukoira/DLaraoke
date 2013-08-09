@@ -11,8 +11,6 @@
 #include "ctool.h"
 #include "dlaraoke.h"
 
-#define IS_START_ELEM(r, n) ((*r).isStartElement()) && ((*r).name() == n)
-
 const QString CMediaFile::NOD_MEDIA_FILE            = "media_file";
 const QString CMediaFile::ATTR_FILE_TYPE            = "type";
 const QString CMediaFile::NOD_ARTIST                = "artist";
@@ -650,6 +648,12 @@ bool CMediaLibrary::readXmlData(QString fileName)
 
     readXmlData(&reader);
     setMediaLibraryFile(fileName);
+
+    fileName = CTool::baseName(fileName);
+    fileName+= "_Playlist";
+    fileName = CTool::makeSuffix(fileName, "xml");
+    m_PlayLists.readPlaylists(fileName);
+
     return true;
 }
 
@@ -704,6 +708,7 @@ void CMediaLibrary::clear()
     m_szName = "";
     m_szMediaLibLocation = "";
     m_szMediaLibraryFile = "";
+    m_PlayLists.clear();
 }
 
 CMediaFile *CMediaLibrary::getMediaFile(int index) const

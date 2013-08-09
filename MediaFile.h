@@ -1,6 +1,8 @@
 #ifndef MEDIAFILE_H
 #define MEDIAFILE_H
 
+#include "playlist.h"
+
 #include <QFileInfo>
 #include <QAbstractTableModel>
 #include <QXmlStreamWriter>
@@ -121,6 +123,7 @@ protected:
             m_szName;                           // Media library name
 
     QString m_szMediaLibraryFile;               // XML-file of media library data
+    CPlaylists m_PlayLists;
     
     typedef vector<CMediaFile *> tMediaFiles;
     tMediaFiles m_MediaFiles;                   // All media files in library
@@ -140,6 +143,8 @@ protected:
     bool isAbove(CMediaFile *pFirst, CMediaFile *pSecond);
     void collectUniqueFiles();
 
+    void readXmlData(QXmlStreamReader *reader);
+    void writeXmlData(QXmlStreamWriter *writer);
 public:
     CMediaLibrary();
     ~CMediaLibrary();
@@ -154,10 +159,7 @@ public:
     QString getMediaLibraryFile() const;
     void setMediaLibraryFile(QString szFile);
 
-    void readXmlData(QXmlStreamReader *reader);
     bool readXmlData(QString fileName);
-
-    void writeXmlData(QXmlStreamWriter *writer);
     bool writeXmlData(QString fileName);
 
     QString getName() const                     {return m_szName;}
@@ -167,6 +169,8 @@ public:
 
     bool isInLibrary(CMediaFile *pFile);        // Is pFile in this media library
     bool copyTo(CMediaFile *pFile);
+
+    CPlaylists *getPlaylists()                  {return &m_PlayLists;}
 };
 
 class CAudioTrack

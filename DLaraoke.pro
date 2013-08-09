@@ -18,7 +18,10 @@ SOURCES += main.cpp\
     settingsedit.cpp \
     dlaraoke.cpp \
     medialibraryedit.cpp \
-    mediafilterproxymodel.cpp
+    mediafilterproxymodel.cpp \
+    playlistedit.cpp \
+    playlist.cpp \
+    playlistselect.cpp
 
 HEADERS  += mainwindow.h \
     MediaFile.h \
@@ -27,8 +30,13 @@ HEADERS  += mainwindow.h \
     settingsedit.h \
     dlaraoke.h \
     medialibraryedit.h \
-    mediafilterproxymodel.h
+    mediafilterproxymodel.h \
+    playlistedit.h \
+    playlist.h \
+    playlistselect.h
 
 FORMS    += mainwindow.ui \
     settingsedit.ui \
-    medialibraryedit.ui
+    medialibraryedit.ui \
+    playlistedit.ui \
+    playlistselect.ui

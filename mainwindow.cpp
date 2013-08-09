@@ -4,6 +4,8 @@
 #include "dlaraoke.h"
 #include "ctool.h"
 #include "medialibraryedit.h"
+#include "playlistedit.h"
+#include "playlistselect.h"
 
 #include <QMessageBox>
 #include <QFileDialog>
@@ -37,10 +39,17 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QAction *play = new QAction("Play", ui->tvMediaFiles);
     QAction *rename = new QAction("Rename", ui->tvMediaFiles);
+    QAction *addPlaylist = new QAction("Add to playlist...", ui->tvMediaFiles);
+
     play->setShortcut(QKeySequence("Ctrl+P"));
-    rename->setShortcut(QKeySequence(Qt::Key_F2));
+    rename->setShortcut(Qt::Key_F2);
+    addPlaylist->setShortcut(Qt::Key_F4);
+
     ui->tvMediaFiles->addAction(play);
     ui->tvMediaFiles->addAction(rename);
+    ui->tvMediaFiles->addAction(addPlaylist);
+
+    ui->menu_Edit->addAction(rename);
 
     ui->view_star_1->setShortcut(Qt::CTRL + Qt::Key_F1);
     ui->view_star_2->setShortcut(Qt::CTRL + Qt::Key_F2);
@@ -48,8 +57,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->view_star_4->setShortcut(Qt::CTRL + Qt::Key_F4);
     ui->view_star_5->setShortcut(Qt::CTRL + Qt::Key_F5);
 
-    connect(play,   SIGNAL(triggered()), this, SLOT(playCurrent()));
-    connect(rename, SIGNAL(triggered()), this, SLOT(renameCurrent()));
+    connect(play,           SIGNAL(triggered()), this, SLOT(playCurrent()));
+    connect(rename,         SIGNAL(triggered()), this, SLOT(renameCurrent()));
+    connect(addPlaylist,    SIGNAL(triggered()), this, SLOT(addToPlaylist()));
 
     ui->tvMediaFiles->setContextMenuPolicy(Qt::ActionsContextMenu);
 
@@ -60,6 +70,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionScan_media_library,   SIGNAL(triggered()), this, SLOT(scanMediaFiles()));
     connect(ui->actionRead_media_data,      SIGNAL(triggered()), this, SLOT(readMediaData()));
     connect(ui->actionWrite_media_data,     SIGNAL(triggered()), this, SLOT(writeMediaData()));
+    connect(ui->actionWrite_playlist,       SIGNAL(triggered()), this, SLOT(writePalylist()));
     connect(ui->action_Exit,                SIGNAL(triggered()), this, SLOT(close()));
 
     connect(ui->actionEdit_Settings,        SIGNAL(triggered()), this, SLOT(editSettings()));
@@ -74,6 +85,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->view_star_5,                SIGNAL(triggered()), this, SLOT(setViewStars()));
 
     connect(ui->action_Libraries,           SIGNAL(triggered()), this, SLOT(editMediaLibraries()));
+    connect(ui->actionPlaylists,            SIGNAL(triggered()), this, SLOT(editPlaylists()));
 
     // Event filters
     ui->tvMediaFiles->installEventFilter(this);
@@ -190,6 +202,55 @@ void MainWindow::setFilters()
     // m_pDetailFiles->setMediaLibrary(m_Library);
 }
 
+void MainWindow::updateViewPlaylists()
+{
+    QAction *pAction;
+    CPlaylists::tPlaylists lists = m_pLibrary->getPlaylists()->getPlaylists();
+    CPlaylists::tPlaylists::iterator itPL;
+    int i;
+
+    ui->menuPlaylists->clear();
+    pAction = new QAction("Media library", ui->menuPlaylists);
+    pAction->setShortcut(Qt::SHIFT + Qt::Key_F1);
+    ui->menuPlaylists->addAction(pAction);
+
+    connect(pAction,    SIGNAL(triggered()), this, SLOT(setViewLibrary()));
+
+    i=2;
+    for(itPL = lists.begin(); itPL != lists.end(); itPL++)
+    {
+        pAction = new QAction(itPL->second->name(), ui->menuPlaylists);
+        switch(i)
+        {
+        case 2:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F2);
+            break;
+        case 3:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F3);
+            break;
+        case 4:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F4);
+            break;
+        case 5:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F5);
+            break;
+        case 6:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F6);
+            break;
+        case 7:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F7);
+            break;
+        case 8:
+            pAction->setShortcut(Qt::SHIFT + Qt::Key_F8);
+            break;
+        }
+
+        ui->menuPlaylists->addAction(pAction);
+        connect(pAction, SIGNAL(triggered()), this, SLOT(setViewPlaylist()));
+        i++;
+    }
+}
+
 void MainWindow::scanMediaFiles()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"),
@@ -248,11 +309,12 @@ void MainWindow::readMediaData(QString fileName)
         m_pLibrary = new CMediaLibrary();
     m_pLibrary->readXmlData(fileName);
     setFilters();
+    updateViewPlaylists();
 }
 
 void MainWindow::writeMediaData()
 {
-    if(m_pFiles->rowCount(QModelIndex()) <= 0)
+    if(m_pLibrary->count() <= 0)
     {
         QMessageBox::information(this, tr("Write data"), tr("No media files loaded, nothing to write"));
         return;
@@ -266,10 +328,26 @@ void MainWindow::writeMediaData()
     }
 }
 
+void MainWindow::writePalylist()
+{
+    CPlaylists *lists = m_pLibrary->getPlaylists();
+
+    if(!lists->fileName().isEmpty())
+        lists->writePlaylists(lists->fileName());
+}
+
 void MainWindow::writeMediaData(QString fileName)
 {
     if(m_pLibrary != NULL)
         m_pLibrary->writeXmlData(fileName);
+}
+
+CMediaFile *MainWindow::getCurrent()
+{
+    QModelIndex file;
+
+    file = m_pSortModel->mapToSource(ui->tvMediaFiles->currentIndex());
+    return m_pLibrary->getMediaFile(file.row());
 }
 
 void MainWindow::playCurrent()
@@ -322,15 +400,53 @@ void MainWindow::setViewStars()
         m_pSortModel->setStars(5);
 }
 
+void MainWindow::setViewLibrary()
+{
+    m_pSortModel->setPlaylist(NULL);
+}
+
+void MainWindow::setViewPlaylist()
+{
+    QAction *pSender = dynamic_cast<QAction *>(sender());
+
+    if(pSender != NULL)
+    {
+        CPlaylist *list = m_pLibrary->getPlaylists()->getPlaylist(pSender->text());
+        m_pSortModel->setPlaylist(list);
+    }
+}
+
+void MainWindow::addToPlaylist()
+{
+    CMediaFile *pFile = getCurrent();
+    CPlaylist *pList = m_pSortModel->playlist();
+
+    if(pFile != NULL)
+    {
+        if(pList != NULL)
+        {
+            QMessageBox::information(NULL, "Add to playlist", QString("Playlist [%1] is seiected.\n\nAdd to playlist failed").arg(pList->name()));
+        }
+        else
+        {
+            PlaylistSelect *dlg = new PlaylistSelect(this, m_pLibrary->getPlaylists());
+
+            if(dlg->exec() == QDialog::Accepted)
+            {
+                pList = m_pLibrary->getPlaylists()->getPlaylist(dlg->playlist());
+                pList->addArtistTitle(pFile->getArtistTitle());
+            }
+
+            delete dlg;
+        }
+    }
+}
+
 void MainWindow::renameCurrent()
 {
-    QModelIndex file;
-    CMediaFile *pFile;
+    CMediaFile *pFile = getCurrent();
     QString fileName;
     bool ok=false;
-
-    file = m_pSortModel->mapToSource(ui->tvMediaFiles->currentIndex());
-    pFile = m_pLibrary->getMediaFile(file.row());
 
     if(pFile != NULL)
     {
@@ -351,6 +467,7 @@ void MainWindow::editSettings()
     SettingsEdit *dlg = new SettingsEdit("Duo Liukko", "Karaoke");
 
     dlg->exec();
+    delete dlg;
 }
 
 void MainWindow::editMediaLibraries()
@@ -358,9 +475,20 @@ void MainWindow::editMediaLibraries()
     CMediaLibraryEdit *dlg = new CMediaLibraryEdit();
 
     dlg->exec();
+    delete dlg;
 }
 
+void MainWindow::editPlaylists()
+{
+    PlaylistEdit *dlg;
 
+    if(m_pLibrary->getPlaylists() != NULL)
+    {
+        dlg = new PlaylistEdit(0, m_pLibrary->getPlaylists());
+        dlg->exec();
+        delete dlg;
+    }
+}
 
 
 

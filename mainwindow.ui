@@ -72,6 +72,7 @@
     <addaction name="actionScan_media_library"/>
     <addaction name="actionRead_media_data"/>
     <addaction name="actionWrite_media_data"/>
+    <addaction name="actionWrite_playlist"/>
     <addaction name="separator"/>
     <addaction name="action_Exit"/>
    </widget>
@@ -82,6 +83,7 @@
     <addaction name="separator"/>
     <addaction name="actionEdit_Settings"/>
     <addaction name="action_Libraries"/>
+    <addaction name="actionPlaylists"/>
    </widget>
    <widget class="QMenu" name="menu_View">
     <property name="title">
@@ -97,7 +99,13 @@
      <addaction name="view_star_4"/>
      <addaction name="view_star_5"/>
     </widget>
+    <widget class="QMenu" name="menuPlaylists">
+     <property name="title">
+      <string>Playlists</string>
+     </property>
+    </widget>
     <addaction name="menuStars"/>
+    <addaction name="menuPlaylists"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menu_Edit"/>
@@ -173,6 +181,24 @@
   <action name="action_Libraries">
    <property name="text">
     <string>&amp;Libraries</string>
+   </property>
+  </action>
+  <action name="actionPlaylists">
+   <property name="text">
+    <string>Playlists</string>
+   </property>
+  </action>
+  <action name="actionPlaylist1">
+   <property name="text">
+    <string>Playlist1</string>
+   </property>
+  </action>
+  <action name="actionWrite_playlist">
+   <property name="text">
+    <string>Write playlist</string>
+   </property>
+   <property name="shortcut">
+    <string>F5</string>
    </property>
   </action>
  </widget>
