@@ -3,7 +3,9 @@
 
 #include <QKeyEvent>
 
-PlaylistSelect::PlaylistSelect(QWidget *parent, CPlaylists *pLists) :
+const QString PlaylistSelect::MEDIA_LIBRARY = tr("Media library");
+
+PlaylistSelect::PlaylistSelect(QWidget *parent, CPlaylists *pLists, bool bShowMainLib) :
     QDialog(parent),
     ui(new Ui::PlaylistSelect)
 {
@@ -14,6 +16,9 @@ PlaylistSelect::PlaylistSelect(QWidget *parent, CPlaylists *pLists) :
     ui->setupUi(this);
     connect(ui->lstPlaylist,    SIGNAL(itemClicked(QListWidgetItem*)),  this, SLOT(selectPlaylist(QListWidgetItem*)));
     ui->lstPlaylist->installEventFilter(this);
+
+    if(bShowMainLib)
+        pItem = new QListWidgetItem(MEDIA_LIBRARY, ui->lstPlaylist);
 
     for(itPL = lists.begin(); itPL != lists.end(); itPL++)
     {

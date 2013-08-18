@@ -40,14 +40,17 @@ MainWindow::MainWindow(QWidget *parent) :
     QAction *play = new QAction("Play", ui->tvMediaFiles);
     QAction *rename = new QAction("Rename", ui->tvMediaFiles);
     QAction *addPlaylist = new QAction("Add to playlist...", ui->tvMediaFiles);
+    QAction *setPlaylist = new QAction("Select playlist...", ui->tvMediaFiles);
 
     play->setShortcut(QKeySequence("Ctrl+P"));
     rename->setShortcut(Qt::Key_F2);
     addPlaylist->setShortcut(Qt::Key_F4);
+    setPlaylist->setShortcut(Qt::Key_F8);
 
     ui->tvMediaFiles->addAction(play);
     ui->tvMediaFiles->addAction(rename);
     ui->tvMediaFiles->addAction(addPlaylist);
+    ui->tvMediaFiles->addAction(setPlaylist);
 
     ui->menu_Edit->addAction(rename);
 
@@ -60,6 +63,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(play,           SIGNAL(triggered()), this, SLOT(playCurrent()));
     connect(rename,         SIGNAL(triggered()), this, SLOT(renameCurrent()));
     connect(addPlaylist,    SIGNAL(triggered()), this, SLOT(addToPlaylist()));
+    connect(setPlaylist,    SIGNAL(triggered()), this, SLOT(setPlaylist()));
 
     ui->tvMediaFiles->setContextMenuPolicy(Qt::ActionsContextMenu);
 
@@ -278,7 +282,11 @@ void MainWindow::scanMediaFiles()
             pTmpLib->scanMediaFiles(dir, false, &progress);
             if(!progress.wasCanceled())
             {
-                if(m_pLibrary != NULL) delete m_pLibrary;
+                if(m_pLibrary != NULL)
+                {
+                    pTmpLib->getPlaylists()->readPlaylists(m_pLibrary->getPlaylists()->fileName());
+                    delete m_pLibrary;
+                }
                 m_pLibrary = pTmpLib;
                 m_pLibrary->setName(dir);
                 qDebug("Scanned %d media files", m_pLibrary->count());
@@ -425,11 +433,11 @@ void MainWindow::addToPlaylist()
     {
         if(pList != NULL)
         {
-            QMessageBox::information(NULL, "Add to playlist", QString("Playlist [%1] is seiected.\n\nAdd to playlist failed").arg(pList->name()));
+            QMessageBox::information(NULL, "Add to playlist", QString("Playlist [%1] is selected.\n\nAdd to playlist failed").arg(pList->name()));
         }
         else
         {
-            PlaylistSelect *dlg = new PlaylistSelect(this, m_pLibrary->getPlaylists());
+            PlaylistSelect *dlg = new PlaylistSelect(this, m_pLibrary->getPlaylists(), false);
 
             if(dlg->exec() == QDialog::Accepted)
             {
@@ -439,6 +447,19 @@ void MainWindow::addToPlaylist()
 
             delete dlg;
         }
+    }
+}
+
+void MainWindow::setPlaylist()
+{
+    PlaylistSelect *dlg = new PlaylistSelect(this, m_pLibrary->getPlaylists(), true);
+
+    if(dlg->exec() == QDialog::Accepted)
+    {
+        if(dlg->playlist() == PlaylistSelect::MEDIA_LIBRARY)
+            m_pSortModel->setPlaylist(NULL);
+        else
+            m_pSortModel->setPlaylist(m_pLibrary->getPlaylists()->getPlaylist(dlg->playlist()));
     }
 }
 

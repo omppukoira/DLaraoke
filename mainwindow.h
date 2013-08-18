@@ -64,6 +64,7 @@ private slots:
     void setViewLibrary();
     void setViewPlaylist();
     void addToPlaylist();
+    void setPlaylist();
 
     void renameCurrent();
 };

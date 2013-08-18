@@ -15,7 +15,9 @@ class PlaylistSelect : public QDialog
     Q_OBJECT
     
 public:
-    explicit PlaylistSelect(QWidget *parent, CPlaylists *pLists);
+    static const QString MEDIA_LIBRARY;
+
+    explicit PlaylistSelect(QWidget *parent, CPlaylists *pLists, bool bShowMainLib);
     ~PlaylistSelect();
 
     QString playlist()                      {return m_szPlaylist;}
