@@ -10,8 +10,8 @@ SettingsEdit::SettingsEdit(QString szOrganization, QString szApplication, QWidge
     ui->setupUi(this);
     ui->twSettings->setColumnCount(2);
     ui->twSettings->setHeaderLabels(QStringList()<<tr("Key") <<tr("Value"));
-    ui->twSettings->header()->setResizeMode(0, QHeaderView::Stretch);
-    ui->twSettings->header()->setResizeMode(1, QHeaderView::Stretch);
+    ui->twSettings->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    ui->twSettings->header()->setSectionResizeMode(1, QHeaderView::Stretch);
     ui->twSettings->setItemDelegate(new EditorDelegate(ui->twSettings));
     readSettings();
 

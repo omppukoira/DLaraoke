@@ -1,7 +1,7 @@
 #ifndef QDLARAOKE_H
 #define QDLARAOKE_H
 
-#include <QtGui/QApplication>
+#include <QtWidgets/QApplication>
 #include <QSettings>
 
 class DLaraoke : public QApplication
